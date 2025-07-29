@@ -16,6 +16,22 @@ services:
       - redis
       - mongodb-arkline
 
+  user-service-api:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    ports:
+      - 2020:2020
+    env_file:
+      - ./user-service/.env
+    volumes:
+      - ./user-service:/usr/src/app
+      - /usr/src/app/node_modules
+    networks:
+      - accomplishment-tracker-network
+    depends_on:
+      - redis
+
   redis:
     image: redis:latest
     ports:
