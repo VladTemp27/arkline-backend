@@ -1,0 +1,10 @@
+.env
+.DS_Store
+TODO.md
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+package-lock.json
+node_modules/
