@@ -8,6 +8,8 @@ import { saveTimeLog } from "../dal/time-logs-dal.js";
 import { saveAccomplishment, getAccomplishment, updateAccomplishment } from "../dal/accomplishment-logs-dal.js";
 async function handleFormSubmission(req, res) {
     const formData = req.body;
+    const firstName = req.user.firstName;
+    const lastName = req.user.lastName;
     
     try{
         validateFormData(formData);
@@ -25,7 +27,7 @@ async function handleFormSubmission(req, res) {
         }
 
         console.log("Time logs retrieved from cache:", timeLogs);
-        await saveTimeLog(userId, currentDateTime.date, timeLogs); // Save time log to the database
+        await saveTimeLog(userId, currentDateTime.date, firstName, lastName, timeLogs); // Save time log to the database
         await saveAccomplishment(userId, currentDateTime.date, formData); // Save form data to the database
 
         return res.status(200).send({ message: 'Form submitted successfully', formData, timeLogs });

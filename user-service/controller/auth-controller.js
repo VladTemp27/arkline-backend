@@ -18,6 +18,8 @@ async function handleAuth(req, res) {
         const payload = {
             userId: userData.userId,
             username: userData.username,
+            firstName: userData.firstName,
+            lastName: userData.lastName,
             role: userData.role
         }
 
