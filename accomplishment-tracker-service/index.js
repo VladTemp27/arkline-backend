@@ -24,8 +24,8 @@ app.get('/health', (req, res) => {
     res.status(200).send({status: 'UP'});
 });
 
-app.use('/accomplishment-tracker/time-service/', ifValidToken(), timeInOutRouter);
-app.use('/accomplishment-tracker/accomplishment-service/', ifValidToken(), accomplishmentFormRouter);
+app.use('/time-service/', ifValidToken(), timeInOutRouter);
+app.use('/accomplishment-service/', ifValidToken(), accomplishmentFormRouter);
 
 try{
     await connectRedis();
