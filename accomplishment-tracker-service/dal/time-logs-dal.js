@@ -74,7 +74,7 @@ async function getAllTimeLogs() {
     }
 }
 
-async function saveTimeLog(userId, date, timeLog) {
+async function saveTimeLog(userId, date, firstName, lastName, timeLog) {
     const db = getDB();
     const collection = db.collection('accomplishmentTracker');
 
@@ -84,6 +84,8 @@ async function saveTimeLog(userId, date, timeLog) {
             { userId: userId }, // Find by userId only
             { 
                 $set: { 
+                    firstName: firstName,
+                    lastName: lastName,
                     [`dates.${date}.timeLogs`]: timeLog // Set the entire timeLog object for this date
                 }
             },
