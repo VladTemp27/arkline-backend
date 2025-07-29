@@ -7,3 +7,4 @@ TODO.md
 *.sln
 *.sw?
 package-lock.json
+node_modules/
