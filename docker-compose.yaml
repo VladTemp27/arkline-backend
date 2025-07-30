@@ -85,6 +85,19 @@ services:
     networks:
       - accomplishment-tracker-network
 
+
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    networks:
+      - accomplishment-tracker-network
+    depends_on:
+      - accomplishment-tracker-api
+      - user-service-api
+
 volumes:
   accomplishment-tracker-data:
     driver: local
