@@ -1,5 +1,5 @@
 import { getUserByCredentials, createUser } from "../dal/user-dal.js";
-import { jwtEncode } from "../util/jwt-util.js";
+import { jwtEncode, jwtDecode } from "../util/jwt-util.js";
 import { redisClient } from "../util/redis-util.js";
 
 async function handleAuth(req, res) {
@@ -54,4 +54,25 @@ function handleCreateUser(req, res) {
     });
 }
 
-export { handleAuth, handleCreateUser };
+function handleAuthorize(req, res) {
+    const token = req.headers['authorization']?.split(' ')[1];
+    if (!token) {
+        return res.status(401).send({ error: 'No token provided' });
+    }
+
+    try {
+        const decoded = jwtDecode(token);
+        if (!decoded || !decoded.userId) {
+            return res.status(401).send({ error: 'Invalid token' });
+        }
+        
+        // Store user info in Redis for session management
+        redisClient.set(decoded.userId, JSON.stringify(decoded), 'EX', 3600); // 1 hour expiration
+
+        return res.status(200).send({ message: 'Authorization successful', user: decoded });
+    } catch (error) {
+        return res.status(401).send({ error: 'Invalid token' });
+    }
+}
+
+export { handleAuth, handleCreateUser, handleAuthorize };
