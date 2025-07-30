@@ -16,17 +16,27 @@ async function getTimeLogsByUserId(userId, date = null) {
         }
         
         if (date) {
-            // Return specific date's time log
-            // NOTE: Technically this returns a accomplishment logs as well
+            // Return specific date's time log with user info
             const dateLog = userDoc.dates?.[date];
             if (!dateLog) {
                 throw new Error(`No time logs found for user ${userId} on date ${date}`);
             }
-            return dateLog;
+            return {
+                userId: userDoc.userId,
+                firstName: userDoc.firstName,
+                lastName: userDoc.lastName,
+                date: date,
+                ...dateLog
+            };
         }
         
-        // Return all dates for the user
-        return userDoc.dates || {};
+        // Return all dates for the user with user info
+        return {
+            userId: userDoc.userId,
+            firstName: userDoc.firstName,
+            lastName: userDoc.lastName,
+            dates: userDoc.dates || {}
+        };
     } catch (error) {
         console.error('Error fetching time logs:', error);
         throw error;
@@ -38,34 +48,43 @@ async function getAllTimeLogs() {
     const collection = db.collection('accomplishmentTracker');
     
     try {
-        // Use aggregation to extract only timeLogs with firstName and lastName
+        // Use aggregation to extract all timeLogs with firstName, lastName, and dates
         const pipeline = [
             {
                 $project: {
                     _id: 0,
                     userId: 1,
-                    firstName: 1,  // Include firstName
-                    lastName: 1,   // Include lastName
-                    timeLogs: {
-                        $objectToArray: "$dates"
-                    }
+                    firstName: 1,
+                    lastName: 1,
+                    dates: 1
                 }
             },
             {
-                $unwind: "$timeLogs"
+                $addFields: {
+                    dateEntries: { $objectToArray: "$dates" }
+                }
+            },
+            {
+                $unwind: "$dateEntries"
+            },
+            {
+                $match: {
+                    "dateEntries.v.timeLogs": { $exists: true }
+                }
             },
             {
                 $project: {
                     userId: 1,
-                    firstName: 1,  // Include firstName in final projection
-                    lastName: 1,   // Include lastName in final projection
-                    date: "$timeLogs.k",
-                    timeLogs: "$timeLogs.v.timeLogs"
+                    firstName: 1,
+                    lastName: 1,
+                    date: "$dateEntries.k",
+                    timeLogs: "$dateEntries.v.timeLogs"
                 }
             },
             {
-                $match: {
-                    timeLogs: { $exists: true }
+                $sort: {
+                    userId: 1,
+                    date: -1  // Sort by date descending (newest first)
                 }
             }
         ];
