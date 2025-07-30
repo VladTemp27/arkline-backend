@@ -13,236 +13,6 @@ import { Clock, FileText, Users, Calendar, Search, ChevronDown } from "lucide-re
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible.jsx"
 import { Target, TrendingUp, ChevronRight } from "lucide-react"
 
-// Large dummy data for testing with varied status types
-const dummyTimeLogs = [
-  // ON TIME examples (exactly 8.5 hours)
-  {
-    userId: "1",
-    name: "John Smith",
-    date: "2025-07-30",
-    timeIn: "08:00:00",
-    timeOut: "17:30:00",
-    lunchBreakStart: "12:00:00",
-    lunchBreakEnd: "13:00:00"
-  },
-  {
-    userId: "2", 
-    name: "Sarah Johnson",
-    date: "2025-07-30",
-    timeIn: "09:00:00",
-    timeOut: "18:30:00",
-    lunchBreakStart: "12:30:00",
-    lunchBreakEnd: "13:30:00"
-  },
-  {
-    userId: "3",
-    name: "Mike Chen",
-    date: "2025-07-30", 
-    timeIn: "07:30:00",
-    timeOut: "17:00:00",
-    lunchBreakStart: "12:00:00",
-    lunchBreakEnd: "13:00:00"
-  },
-  // OVERTIME examples (more than 8.5 hours)
-  {
-    userId: "4",
-    name: "Emily Davis",
-    date: "2025-07-30",
-    timeIn: "08:00:00",
-    timeOut: "18:00:00",
-    lunchBreakStart: "12:00:00",
-    lunchBreakEnd: "13:00:00"
-  },
-  {
-    userId: "5",
-    name: "David Wilson",
-    date: "2025-07-30",
-    timeIn: "07:00:00",
-    timeOut: "19:30:00",
-    lunchBreakStart: "12:00:00",
-    lunchBreakEnd: "13:00:00"
-  },
-  {
-    userId: "6",
-    name: "Lisa Anderson",
-    date: "2025-07-30",
-    timeIn: "08:30:00",
-    timeOut: "19:00:00",
-    lunchBreakStart: "12:30:00",
-    lunchBreakEnd: "13:30:00"
-  },
-  {
-    userId: "7",
-    name: "Robert Taylor",
-    date: "2025-07-30",
-    timeIn: "06:30:00",
-    timeOut: "18:00:00",
-    lunchBreakStart: "11:30:00",
-    lunchBreakEnd: "12:30:00"
-  },
-  // UNDERTIME examples (less than 8.5 hours)
-  {
-    userId: "8",
-    name: "Jessica Brown",
-    date: "2025-07-30",
-    timeIn: "09:00:00",
-    timeOut: "16:00:00",
-    lunchBreakStart: "12:00:00",
-    lunchBreakEnd: "13:00:00"
-  },
-  {
-    userId: "9",
-    name: "Christopher Lee",
-    date: "2025-07-30",
-    timeIn: "10:00:00",
-    timeOut: "17:30:00",
-    lunchBreakStart: "13:00:00",
-    lunchBreakEnd: "14:00:00"
-  },
-  {
-    userId: "10",
-    name: "Amanda White",
-    date: "2025-07-30",
-    timeIn: "08:00:00",
-    timeOut: "15:30:00",
-    lunchBreakStart: "12:00:00",
-    lunchBreakEnd: "13:00:00"
-  },
-  {
-    userId: "11",
-    name: "Daniel Martinez",
-    date: "2025-07-30",
-    timeIn: "09:30:00",
-    timeOut: "16:30:00",
-    lunchBreakStart: "12:00:00",
-    lunchBreakEnd: "13:00:00"
-  },
-  // More ON TIME examples
-  {
-    userId: "12",
-    name: "Nicole Garcia",
-    date: "2025-07-30",
-    timeIn: "08:15:00",
-    timeOut: "17:45:00",
-    lunchBreakStart: "12:15:00",
-    lunchBreakEnd: "13:15:00"
-  },
-  // More OVERTIME examples
-  {
-    userId: "13",
-    name: "Kevin Rodriguez",
-    date: "2025-07-30",
-    timeIn: "07:45:00",
-    timeOut: "19:15:00",
-    lunchBreakStart: "12:00:00",
-    lunchBreakEnd: "13:00:00"
-  },
-  // More UNDERTIME examples
-  {
-    userId: "14",
-    name: "Michelle Thomas",
-    date: "2025-07-30",
-    timeIn: "10:30:00",
-    timeOut: "17:00:00",
-    lunchBreakStart: "13:00:00",
-    lunchBreakEnd: "14:00:00"
-  },
-  {
-    userId: "15",
-    name: "Brian Jackson",
-    date: "2025-07-30",
-    timeIn: "11:00:00",
-    timeOut: "18:00:00",
-    lunchBreakStart: "14:00:00",
-    lunchBreakEnd: "15:00:00"
-  }
-]
-
-const dummyPreviousLogs = {
-  "1": [
-    {
-      date: "2025-07-29",
-      timeIn: "08:15:00",
-      timeOut: "17:45:00",
-      lunchBreakStart: "12:30:00",
-      lunchBreakEnd: "13:30:00",
-      details: {
-        groupName: "Frontend Development Team",
-        typeOfActivity: "Feature Development",
-        module: "User Dashboard",
-        activity: "Implemented new dashboard components and integrated API endpoints for real-time data display.",
-        dateAssigned: "July 27, 2025",
-        targetEndDate: "July 29, 2025",
-        actualEndDate: "July 29, 2025",
-        currentStatus: "Completed",
-        percentageOfActivity: 100,
-        projectLeads: ["Sarah Johnson", "Mike Chen"]
-      }
-    },
-    {
-      date: "2025-07-28", 
-      timeIn: "08:00:00",
-      timeOut: "17:30:00",
-      lunchBreakStart: "12:00:00",
-      lunchBreakEnd: "13:00:00",
-      details: {
-        groupName: "Frontend Development Team",
-        typeOfActivity: "Bug Fixes",
-        module: "Authentication System",
-        activity: "Fixed login validation issues and improved error handling for edge cases.",
-        dateAssigned: "July 26, 2025",
-        targetEndDate: "July 28, 2025", 
-        actualEndDate: "July 28, 2025",
-        currentStatus: "Completed",
-        percentageOfActivity: 100,
-        projectLeads: ["David Wilson"]
-      }
-    }
-  ],
-  "2": [
-    {
-      date: "2025-07-29",
-      timeIn: "09:00:00",
-      timeOut: "18:15:00",
-      lunchBreakStart: "12:45:00",
-      lunchBreakEnd: "13:45:00",
-      details: {
-        groupName: "Backend Development Team",
-        typeOfActivity: "API Development",
-        module: "Time Tracking Service",
-        activity: "Developed REST APIs for time logging functionality with proper authentication and validation.",
-        dateAssigned: "July 27, 2025",
-        targetEndDate: "July 30, 2025",
-        actualEndDate: "July 29, 2025",
-        currentStatus: "Completed",
-        percentageOfActivity: 95,
-        projectLeads: ["Emily Davis", "Robert Taylor"]
-      }
-    }
-  ],
-  "3": [
-    {
-      date: "2025-07-29",
-      timeIn: "07:45:00",
-      timeOut: "16:45:00", 
-      lunchBreakStart: "12:00:00",
-      lunchBreakEnd: "12:45:00",
-      details: {
-        groupName: "QA Testing Team",
-        typeOfActivity: "Testing",
-        module: "User Management System",
-        activity: "Performed comprehensive testing on user registration and profile management features.",
-        dateAssigned: "July 28, 2025",
-        targetEndDate: "July 29, 2025",
-        actualEndDate: "July 29, 2025",
-        currentStatus: "Completed",
-        percentageOfActivity: 100,
-        projectLeads: ["Jessica Brown"]
-      }
-    }
-  ]
-}
-
 export default function AccomplishmentDashboard() {
   const [expandedLogs, setExpandedLogs] = useState(new Set())
   const [searchQuery, setSearchQuery] = useState("")
@@ -252,7 +22,7 @@ export default function AccomplishmentDashboard() {
   const [isLoading, setIsLoading] = useState(false)
 
   // API Configuration
-  const API_BASE_URL = 'https://api.arkline.com'
+  const API_BASE_URL = 'http://api.arkline.com'
   const JWT_TOKEN = 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImxlcyIsInVzZXJJZCI6IjIzIiwicm9sZSI6ImFkbWluIiwiZmlyc3ROYW1lIjoiTGVzdGF0IiwibGFzdE5hbWUiOiJBZ3VzdGluIn0.8ixg4h7eXQ9cqmqkowFHLQsbwPY0dGjjQdTrC54MSdQ'
   
   const apiHeaders = {
@@ -345,60 +115,46 @@ export default function AccomplishmentDashboard() {
     
     const hours = Math.floor(totalMinutes / 60)
     const minutes = Math.round(totalMinutes % 60)
-    return `${hours} hrs ${minutes} minutes`
+    return `${hours} hr/s ${minutes} mn/s`
   }
 
   // Fetch today's logs
   const fetchTodaysLogs = async () => {
     setIsLoading(true)
     try {
-      let timeLogs = []
-      
-      // Try to fetch from API first
-      try {
-        const response = await axios.get(`${API_BASE_URL}/api/accomplishment-tracking/time-service/timelogs`, {
-          headers: apiHeaders
-        })
+      const response = await axios.get(`${API_BASE_URL}/api/accomplishment-tracking/time-service/timelogs`, {
+        headers: apiHeaders
+      })
 
-        console.log('API response:', response.data)
-        
-        // Handle the correct API response structure
-        timeLogs = response.data.allTimeLogs || []
-        console.log('Successfully fetched time logs from API:', timeLogs.length, 'records')
-      } catch (apiError) {
-        console.warn('API request failed, using dummy data as fallback:', apiError.message)
-        // Use dummy data as fallback when API fails
-        timeLogs = dummyTimeLogs
-      }
+      console.log(response.status, response.statusText)
+      console.log('API response:', response.data)
       
-      // If no data from both API and dummy data, use empty array
-      if (!timeLogs || timeLogs.length === 0) {
-        console.warn('No time logs available from API or dummy data')
-        timeLogs = dummyTimeLogs // Still use dummy data for testing
-      }
+      // Handle the correct API response structure
+      const timeLogs = response.data.allTimeLogs || []
+      console.log('Successfully fetched time logs from API:', timeLogs.length, 'records')
       
       // Transform data to match component structure
       const transformedData = timeLogs.map(log => ({
         id: log.userId,
-        name: log.name,
+        name: `${log.firstName || ''} ${log.lastName || ''}`.trim() || `User ${log.userId}`,
         latestDate: new Date(log.date).toLocaleDateString('en-US', { 
           year: 'numeric', 
           month: 'long', 
           day: 'numeric' 
         }),
-        timeIn: log.timeIn || 'N/A',
-        timeOut: log.timeOut || 'N/A',
+        timeIn: log.timeLogs?.timeIn || 'N/A',
+        timeOut: log.timeLogs?.timeOut || 'N/A',
         totalHours: formatTotalHours(
-          log.timeIn, 
-          log.timeOut, 
-          log.lunchBreakStart, 
-          log.lunchBreakEnd
+          log.timeLogs?.timeIn, 
+          log.timeLogs?.timeOut, 
+          log.timeLogs?.lunchBreakStart, 
+          log.timeLogs?.lunchBreakEnd
         ),
         status: calculateWorkStatus(
-          log.timeIn, 
-          log.timeOut, 
-          log.lunchBreakStart, 
-          log.lunchBreakEnd
+          log.timeLogs?.timeIn, 
+          log.timeLogs?.timeOut, 
+          log.timeLogs?.lunchBreakStart, 
+          log.timeLogs?.lunchBreakEnd
         ),
         rawData: log, // Keep original data for reference
         previousLogs: [] // Will be populated when user clicks on logs
@@ -407,34 +163,7 @@ export default function AccomplishmentDashboard() {
       setTodaysLogs(transformedData)
     } catch (error) {
       console.error('Error in fetchTodaysLogs:', error)
-      // Use dummy data as final fallback
-      console.log('Using dummy data as final fallback')
-      const transformedData = dummyTimeLogs.map(log => ({
-        id: log.userId,
-        name: log.name,
-        latestDate: new Date(log.date).toLocaleDateString('en-US', { 
-          year: 'numeric', 
-          month: 'long', 
-          day: 'numeric' 
-        }),
-        timeIn: log.timeIn || 'N/A',
-        timeOut: log.timeOut || 'N/A',
-        totalHours: formatTotalHours(
-          log.timeIn, 
-          log.timeOut, 
-          log.lunchBreakStart, 
-          log.lunchBreakEnd
-        ),
-        status: calculateWorkStatus(
-          log.timeIn, 
-          log.timeOut, 
-          log.lunchBreakStart, 
-          log.lunchBreakEnd
-        ),
-        rawData: log,
-        previousLogs: []
-      }))
-      setTodaysLogs(transformedData)
+      setTodaysLogs([])
     } finally {
       setIsLoading(false)
     }
@@ -444,164 +173,61 @@ export default function AccomplishmentDashboard() {
   const fetchUserPreviousLogs = async (userId) => {
     setIsLoading(true)
     try {
+      // Fetch time logs for the user using the corrected endpoint
+      const timeLogsResponse = await axios.get(`${API_BASE_URL}/api/accomplishment-tracking/time-service/timelogs/${userId}?userId=${userId}`, {
+        headers: apiHeaders
+      })
+      
+      console.log('Previous logs API response:', timeLogsResponse.data)
+      
+      // Handle the new API response structure
+      const responseData = timeLogsResponse.data.timeLogs
       let logsWithAccomplishments = []
       
-      // Try to fetch from API first
-      try {
-        // Fetch time logs for the user
-        const timeLogsResponse = await axios.get(`${API_BASE_URL}/api/accomplishment-tracking/time-service/timelogs/${userId}?userId=${userId}`, {
-          headers: apiHeaders
-        })
+      if (responseData && responseData.timeLogs) {
+        // Since we're getting a single log entry, we'll create an array with one item
+        // For the date, we'll use today's date or extract from accomplishment log if available
+        const logDate = responseData.accomplishmentLog?.dateAssigned || new Date().toISOString().split('T')[0]
         
-        // Handle the correct API response structure
-        const userTimeLogs = timeLogsResponse.data.allTimeLogs || []
-        console.log('User Time Logs from API:', userTimeLogs.length, 'records')
-        
-        // Transform time logs and fetch accomplishments for each date
-        logsWithAccomplishments = await Promise.all(
-          userTimeLogs.map(async (log) => {
-            try {
-              // Fetch accomplishments for this specific date
-              const accomplishmentResponse = await axios.get(
-                `${API_BASE_URL}/api/accomplishment-tracking/accomplishment-service/form?userId=${userId}&date=${log.date}`,
-                { headers: apiHeaders }
-              )
-              
-              return {
-                date: new Date(log.date).toLocaleDateString('en-US', { 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
-                }),
-                timeIn: log.timeLogs?.timeIn || 'N/A',
-                timeOut: log.timeLogs?.timeOut || 'N/A',
-                totalHours: formatTotalHours(
-                  log.timeLogs?.timeIn, 
-                  log.timeLogs?.timeOut, 
-                  log.timeLogs?.lunchBreakStart, 
-                  log.timeLogs?.lunchBreakEnd
-                ),
-                status: calculateWorkStatus(
-                  log.timeLogs?.timeIn, 
-                  log.timeLogs?.timeOut, 
-                  log.timeLogs?.lunchBreakStart, 
-                  log.timeLogs?.lunchBreakEnd
-                ),
-                details: accomplishmentResponse.data || {}
-              }
-            } catch (accomplishmentError) {
-              console.error('Error fetching accomplishments for date:', log.date, accomplishmentError)
-              return {
-                date: new Date(log.date).toLocaleDateString('en-US', { 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
-                }),
-                timeIn: log.timeLogs?.timeIn || 'N/A',
-                timeOut: log.timeLogs?.timeOut || 'N/A',
-                totalHours: formatTotalHours(
-                  log.timeLogs?.timeIn, 
-                  log.timeLogs?.timeOut, 
-                  log.timeLogs?.lunchBreakStart, 
-                  log.timeLogs?.lunchBreakEnd
-                ),
-                status: calculateWorkStatus(
-                  log.timeLogs?.timeIn, 
-                  log.timeLogs?.timeOut, 
-                  log.timeLogs?.lunchBreakStart, 
-                  log.timeLogs?.lunchBreakEnd
-                ),
-                details: {}
-              }
-            }
-          })
-        )
-      } catch (apiError) {
-        console.warn('API request failed, using dummy data as fallback:', apiError.message)
-        // Use dummy data as fallback when API fails
-        const userPreviousLogs = dummyPreviousLogs[userId] || []
-        
-        logsWithAccomplishments = userPreviousLogs.map(log => ({
-          date: new Date(log.date).toLocaleDateString('en-US', { 
+        logsWithAccomplishments = [{
+          date: new Date(logDate).toLocaleDateString('en-US', { 
             year: 'numeric', 
             month: 'long', 
             day: 'numeric' 
           }),
-          timeIn: log.timeIn || 'N/A',
-          timeOut: log.timeOut || 'N/A',
+          timeIn: responseData.timeLogs?.timeIn || 'N/A',
+          timeOut: responseData.timeLogs?.timeOut || 'N/A',
           totalHours: formatTotalHours(
-            log.timeIn, 
-            log.timeOut, 
-            log.lunchBreakStart, 
-            log.lunchBreakEnd
+            responseData.timeLogs?.timeIn, 
+            responseData.timeLogs?.timeOut, 
+            responseData.timeLogs?.lunchBreakStart, 
+            responseData.timeLogs?.lunchBreakEnd
           ),
           status: calculateWorkStatus(
-            log.timeIn, 
-            log.timeOut, 
-            log.lunchBreakStart, 
-            log.lunchBreakEnd
+            responseData.timeLogs?.timeIn, 
+            responseData.timeLogs?.timeOut, 
+            responseData.timeLogs?.lunchBreakStart, 
+            responseData.timeLogs?.lunchBreakEnd
           ),
-          details: log.details || {}
-        }))
-      }
-      
-      // If no data from both API and dummy data, provide fallback
-      if (!logsWithAccomplishments || logsWithAccomplishments.length === 0) {
-        console.warn('No previous logs available from API or dummy data for user:', userId)
-        const userPreviousLogs = dummyPreviousLogs[userId] || []
-        logsWithAccomplishments = userPreviousLogs.map(log => ({
-          date: new Date(log.date).toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-          }),
-          timeIn: log.timeIn || 'N/A',
-          timeOut: log.timeOut || 'N/A',
-          totalHours: formatTotalHours(
-            log.timeIn, 
-            log.timeOut, 
-            log.lunchBreakStart, 
-            log.lunchBreakEnd
-          ),
-          status: calculateWorkStatus(
-            log.timeIn, 
-            log.timeOut, 
-            log.lunchBreakStart, 
-            log.lunchBreakEnd
-          ),
-          details: log.details || {}
-        }))
+          details: {
+            groupName: responseData.accomplishmentLog?.groupName || "Development Team",
+            typeOfActivity: responseData.accomplishmentLog?.activityType || "Development",
+            module: responseData.accomplishmentLog?.module || "General",
+            dateAssigned: responseData.accomplishmentLog?.dateAssigned || logDate,
+            targetEndDate: responseData.accomplishmentLog?.targetEndDate || logDate,
+            actualEndDate: responseData.accomplishmentLog?.actualEndDate || logDate,
+            currentStatus: responseData.accomplishmentLog?.status || "Completed",
+            percentageOfActivity: responseData.accomplishmentLog?.percentageOfActivity || 100,
+            projectLeads: responseData.accomplishmentLog?.projectHeads || ["No assigned leads"],
+            activity: responseData.accomplishmentLog?.activities?.join(', ') || "No activities recorded"
+          }
+        }]
       }
       
       setSelectedUserLogs(logsWithAccomplishments)
     } catch (error) {
       console.error('Error fetching user logs:', error)
-      // Use dummy data as final fallback
-      console.log('Using dummy data as final fallback for user:', userId)
-      const userPreviousLogs = dummyPreviousLogs[userId] || []
-      const fallbackLogs = userPreviousLogs.map(log => ({
-        date: new Date(log.date).toLocaleDateString('en-US', { 
-          year: 'numeric', 
-          month: 'long', 
-          day: 'numeric' 
-        }),
-        timeIn: log.timeIn || 'N/A',
-        timeOut: log.timeOut || 'N/A',
-        totalHours: formatTotalHours(
-          log.timeIn, 
-          log.timeOut, 
-          log.lunchBreakStart, 
-          log.lunchBreakEnd
-        ),
-        status: calculateWorkStatus(
-          log.timeIn, 
-          log.timeOut, 
-          log.lunchBreakStart, 
-          log.lunchBreakEnd
-        ),
-        details: log.details || {}
-      }))
-      setSelectedUserLogs(fallbackLogs)
+      setSelectedUserLogs([])
     } finally {
       setIsLoading(false)
     }
@@ -624,7 +250,8 @@ export default function AccomplishmentDashboard() {
 
   // Filter users based on search and filters
   const filteredUsers = todaysLogs.filter((user) => {
-    const matchesSearch = user.name.toLowerCase().includes(searchQuery.toLowerCase())
+    const userName = user?.name || ''
+    const matchesSearch = userName.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesStatus = statusFilter === "all" || user.status === statusFilter
     return matchesSearch && matchesStatus
   })
