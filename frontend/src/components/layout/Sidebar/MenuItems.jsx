@@ -11,9 +11,14 @@ import { useNavigate, useLocation } from 'react-router';
 function getUserRole (){
     const currentLocation = useLocation();
     const pathname = currentLocation.pathname;
-    if (pathname.includes('/Admin')) {
+    
+    // Check if the current path includes admin routes
+    if (pathname.startsWith('/admin')) {
         return 'admin';
+    } else if (pathname.startsWith('/accomplishmentlog')) {
+        return 'user';
     } else {
+        // Default fallback - could also check localStorage/sessionStorage for user data
         return 'user';
     }
 }
@@ -26,14 +31,20 @@ function useMenuItems() {
         {
             key: 'log-time',
             label: 'Log Time',
-            path: '/Admin/AccomplishmentLog/log-time',
-            onClick: () => navigate('/Admin/AccomplishmentLog/log-time'),
+            path: '/admin/log-time',
+            onClick: () => navigate('/admin/log-time'),
+        },
+        {
+            key: 'tickets',
+            label: 'Tickets',
+            path: '/admin/tickets',
+            onClick: () => navigate('/admin/tickets'),
         },
         {
             key: 'accomplishment-logs',
             label: 'Accomplishment Logs',
-            path: '/Admin/AccomplishmentLog/accomplishment-logs',
-            onClick: () => navigate('/Admin/AccomplishmentLog/accomplishment-logs'),
+            path: '/admin/accomplishment-logs',
+            onClick: () => navigate('/admin/accomplishment-logs'),
         }
     ];
 
@@ -41,14 +52,14 @@ function useMenuItems() {
         {
             key: 'log-time',
             label: 'Log Time',
-            path: '/AccomplishmentLog/log-time',
-            onClick: () => navigate('/AccomplishmentLog/log-time'),
+            path: '/accomplishmentlog/log-time',
+            onClick: () => navigate('/accomplishmentlog/log-time'),
         },
         {
             key: 'accomplishment-logs',
             label: 'Accomplishment Logs',
-            path: '/AccomplishmentLog/accomplishment-logs',
-            onClick: () => navigate('/AccomplishmentLog/accomplishment-logs'),
+            path: '/accomplishmentlog/accomplishment-logs',
+            onClick: () => navigate('/accomplishmentlog/accomplishment-logs'),
         }
     ];
 

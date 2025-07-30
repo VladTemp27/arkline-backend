@@ -1,5 +1,5 @@
 import React from "react";
-import { Timer, NotebookPen, LogOut } from "lucide-react";
+import { Timer, NotebookPen, LogOut, Mail } from "lucide-react";
 import { NavLink } from "react-router";
 import useMenuItems from "./MenuItems";
 
@@ -15,6 +15,8 @@ const Sidebar = () => {
     switch (key) {
       case "log-time":
         return Timer;
+      case "tickets":
+        return Mail;
       case "accomplishment-logs":
         return NotebookPen;
       default:
