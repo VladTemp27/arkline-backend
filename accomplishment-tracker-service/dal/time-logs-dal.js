@@ -38,12 +38,14 @@ async function getAllTimeLogs() {
     const collection = db.collection('accomplishmentTracker');
     
     try {
-        // Use aggregation to extract only timeLogs
+        // Use aggregation to extract only timeLogs with firstName and lastName
         const pipeline = [
             {
                 $project: {
                     _id: 0,
                     userId: 1,
+                    firstName: 1,  // Include firstName
+                    lastName: 1,   // Include lastName
                     timeLogs: {
                         $objectToArray: "$dates"
                     }
@@ -55,6 +57,8 @@ async function getAllTimeLogs() {
             {
                 $project: {
                     userId: 1,
+                    firstName: 1,  // Include firstName in final projection
+                    lastName: 1,   // Include lastName in final projection
                     date: "$timeLogs.k",
                     timeLogs: "$timeLogs.v.timeLogs"
                 }
