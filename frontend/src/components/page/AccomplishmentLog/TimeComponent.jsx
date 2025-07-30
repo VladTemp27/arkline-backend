@@ -308,7 +308,7 @@ const TimeComponent = () => {
             ) : (
               <div className="space-y-3">
                 {(() => {
-                  const logs = generateLogsFromTimeLogs(activityData.timeLogs);
+                  const logs = generateLogsFromTimeLogs(activityData.timeLogs) || [];
                   console.log("Generated logs:", logs);
                   return logs.map((log) => (
                     <div

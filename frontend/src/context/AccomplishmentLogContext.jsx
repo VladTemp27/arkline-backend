@@ -7,7 +7,6 @@ import React, {
 } from "react";
 import PropTypes from "prop-types";
 import axios from "axios";
-import { jwtDecode } from "jwt-decode";
 
 const AccomplishmentLogContext = createContext();
 
@@ -30,25 +29,21 @@ export const TimerProvider = ({ children }) => {
     };
   }, []);
 
-  // Get user info from JWT token
+  // Get user info from activity API instead of JWT decode
   const getUserInfo = useCallback(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      try {
-        const decoded = jwtDecode(token);
-        return {
-          userId: decoded.userId,
-          username: decoded.username || `${decoded.firstName} ${decoded.lastName}`,
-          firstName: decoded.firstName,
-          lastName: decoded.lastName,
-        };
-      } catch (error) {
-        console.error("Error decoding token:", error);
-        return null;
-      }
-    }
-    return null;
-  }, []);
+  // Get username directly from localStorage (stored during login)
+  const username = localStorage.getItem("username");
+  const token = localStorage.getItem("token");
+  
+  if (username && token) {
+    return {
+      username: username, // This will be "NOAHINTERN18"
+      displayName: username // Use username for display
+    };
+  }
+  
+  return null;
+}, []);
 
   // Call activity API and generate logs from the response
   const callActivityAPI = useCallback(async () => {
@@ -67,52 +62,56 @@ export const TimerProvider = ({ children }) => {
     }
   }, [getAuthHeaders]);
 
-  // Generate activity logs from API response
+  // Generate activity logs from API response  
   const generateLogsFromTimeLogs = useCallback((timeLogsData) => {
-    if (!timeLogsData) return [];
+  if (!timeLogsData) return [];
 
-    const logs = [];
-    const username = user?.username || "User";
-    
-    if (timeLogsData.timeIn) {
-      logs.push({
-        id: `timeIn-${timeLogsData.timeIn}`,
-        message: `${username} has timed in`,
-        timestamp: timeLogsData.timeIn,
-        type: 'timeIn'
-      });
-    }
+  const logs = [];
+  
+  // Get username from localStorage instead of API
+  const username = localStorage.getItem("username") || "User";
+  
+  console.log("Using username for logs:", username);
+  
+  if (timeLogsData.timeIn) {
+    logs.push({
+      id: `timeIn-${timeLogsData.timeIn}`,
+      message: `${username} has timed in`,
+      timestamp: timeLogsData.timeIn,
+      type: 'timeIn'
+    });
+  }
 
-    if (timeLogsData.lunchBreakStart) {
-      logs.push({
-        id: `lunchStart-${timeLogsData.lunchBreakStart}`,
-        message: `${username} has started break`,
-        timestamp: timeLogsData.lunchBreakStart,
-        type: 'lunchBreakStart'
-      });
-    }
+  if (timeLogsData.lunchBreakStart) {
+    logs.push({
+      id: `lunchStart-${timeLogsData.lunchBreakStart}`,
+      message: `${username} has started break`,
+      timestamp: timeLogsData.lunchBreakStart,
+      type: 'lunchBreakStart'
+    });
+  }
 
-    if (timeLogsData.lunchBreakEnd) {
-      logs.push({
-        id: `lunchEnd-${timeLogsData.lunchBreakEnd}`,
-        message: `${username} has ended break`,
-        timestamp: timeLogsData.lunchBreakEnd,
-        type: 'lunchBreakEnd'
-      });
-    }
+  if (timeLogsData.lunchBreakEnd) {
+    logs.push({
+      id: `lunchEnd-${timeLogsData.lunchBreakEnd}`,
+      message: `${username} has ended break`,
+      timestamp: timeLogsData.lunchBreakEnd,
+      type: 'lunchBreakEnd'
+    });
+  }
 
-    if (timeLogsData.timeOut) {
-      logs.push({
-        id: `timeOut-${timeLogsData.timeOut}`,
-        message: `${username} has timed out`,
-        timestamp: timeLogsData.timeOut,
-        type: 'timeOut'
-      });
-    }
+  if (timeLogsData.timeOut) {
+    logs.push({
+      id: `timeOut-${timeLogsData.timeOut}`,
+      message: `${username} has timed out`,
+      timestamp: timeLogsData.timeOut,
+      type: 'timeOut'
+    });
+  }
 
-    // Sort logs by timestamp (most recent first)
-    return logs.sort((a, b) => new Date(`1970-01-01T${b.timestamp}`) - new Date(`1970-01-01T${a.timestamp}`));
-  }, [user]);
+  // Sort logs by timestamp (most recent first)
+  return logs.sort((a, b) => new Date(`1970-01-01T${b.timestamp}`) - new Date(`1970-01-01T${a.timestamp}`));
+}, []); // Remove activityData dependency to avoid stale closure
 
   // Calculate hours worked from time logs
   const calculateHoursWorked = useCallback((timeLogsData) => {
