@@ -28,30 +28,38 @@ const TimeComponent = () => {
     fetchCurrentActivity,
     getAuthHeaders,
     getUserInfo,
+    timeOutCompleted,
+    setTimeOutCompleted,
   } = useTimer();
 
   // Check if user has timed out but hasn't submitted accomplishment form
   const checkForPendingTimeOut = async () => {
     try {
-      const user = await getUserInfo();
-      if (!user) return;
+      // This function only checks for PENDING timeouts (after page refresh)
+      // Don't check if we're currently in a timeout session or if user is timed in
+      if (isTimedIn || isTimeOutModalOpen) return;
+      
+      // Get username directly from localStorage
+      const username = localStorage.getItem("username");
+      if (!username) return;
 
+      // Generate logs from current activity data
       const logs = activityData?.timeLogs ? generateLogsFromTimeLogs(activityData.timeLogs) : [];
       console.log("Checking logs for pending timeout:", logs);
 
-      // Look for timeout log entry
+      // Look for timeout log entry using the stored username
       const hasTimeOut = logs.some(log => 
         log.type === 'timeOut' && 
-        log.message.includes(user.username || user.firstName || 'User') &&
+        log.message.includes(username) &&
         log.message.includes('timed out')
       );
 
       console.log("Has timeout entry:", hasTimeOut);
       console.log("Current isTimedIn state:", isTimedIn);
 
-      // If user has timed out but modal isn't open, and they're not currently timed in
-      // This indicates they refreshed during the accomplishment form
-      if (hasTimeOut && !isTimedIn && !isTimeOutModalOpen) {
+      // Only show modal if there's a timeout but user is not currently timed in
+      // AND we haven't completed the timeout in this session
+      if (hasTimeOut && !isTimedIn && !isTimeOutModalOpen && !timeOutCompleted) {
         console.log("Detected pending timeout - showing modal");
         setIsTimeOutModalOpen(true);
       }
@@ -65,7 +73,7 @@ const TimeComponent = () => {
     if (activityData?.timeLogs) {
       checkForPendingTimeOut();
     }
-  }, [activityData, isTimedIn, isTimeOutModalOpen]);
+  }, [activityData, isTimedIn, isTimeOutModalOpen, timeOutCompleted]);
 
   const handleTimeInOut = async () => {
     if (isTimedIn) {
@@ -78,6 +86,8 @@ const TimeComponent = () => {
         });
         console.log("Timeout recorded successfully:", response.data);
         
+        // Reset the completion flag when starting a new timeout
+        setTimeOutCompleted(false);
         setIsTimeOutModalOpen(true);
       } catch (error) {
         console.error("Error timing out:", error);
@@ -86,6 +96,7 @@ const TimeComponent = () => {
         setIsLoading(false);
       }
     } else {
+      setTimeOutCompleted(false); // Reset flag when timing in
       setIsLoading(true);
       setError(null);
       try {
@@ -110,32 +121,34 @@ const TimeComponent = () => {
     }
   };
 
-  const handleAccomplishmentSubmit = async (accomplishmentData) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      if (accomplishmentData) {
-        console.log("Submitting accomplishment form...");
-        const token = localStorage.getItem("token");
-        await axios.post(
-          "/api/accomplishment-tracking/accomplishment-service/submit",
-          accomplishmentData,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        console.log("Accomplishment form submitted successfully");
-      }
-
-      setIsTimedIn(false);
-      setIsOnBreak(false);
-      setIsTimeOutModalOpen(false);
-      await fetchCurrentActivity();
-    } catch (error) {
-      console.error("Error submitting accomplishment:", error);
-      setError(error.response?.data?.error || "Failed to submit accomplishment");
-    } finally {
-      setIsLoading(false);
+// Update handleAccomplishmentSubmit:
+const handleAccomplishmentSubmit = async (accomplishmentData) => {
+  setIsLoading(true);
+  setError(null);
+  try {
+    if (accomplishmentData) {
+      console.log("Submitting accomplishment form...");
+      const token = localStorage.getItem("token");
+      await axios.post(
+        "/api/accomplishment-tracking/accomplishment-service/submit",
+        accomplishmentData,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      console.log("Accomplishment form submitted successfully");
     }
-  };
+
+    setIsTimedIn(false);
+    setIsOnBreak(false);
+    setIsTimeOutModalOpen(false);
+    setTimeOutCompleted(true); // ✅ Mark timeout as completed
+    await fetchCurrentActivity();
+  } catch (error) {
+    console.error("Error submitting accomplishment:", error);
+    setError(error.response?.data?.error || "Failed to submit accomplishment");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleBreak = async () => {
     setIsLoading(true);

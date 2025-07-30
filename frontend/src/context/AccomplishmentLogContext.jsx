@@ -17,6 +17,7 @@ export const TimerProvider = ({ children }) => {
   const [isOnBreak, setIsOnBreak] = useState(false);
   const [user, setUser] = useState(null);
   const [activityData, setActivityData] = useState(null); // Store the full activity response
+  const [timeOutCompleted, setTimeOutCompleted] = useState(false); // Track if timeout is completed
 
   // API configuration
   const API_BASE = "/api/accomplishment-tracking/time-service";
@@ -216,6 +217,8 @@ export const TimerProvider = ({ children }) => {
       fetchCurrentActivity,
       getUserInfo,
       getAuthHeaders,
+      timeOutCompleted,
+      setTimeOutCompleted,
     }),
     [
       currentTime, 
@@ -230,7 +233,8 @@ export const TimerProvider = ({ children }) => {
       calculateHoursWorked, 
       fetchCurrentActivity, 
       getUserInfo, 
-      getAuthHeaders
+      getAuthHeaders,
+      timeOutCompleted
     ]
   );
 
