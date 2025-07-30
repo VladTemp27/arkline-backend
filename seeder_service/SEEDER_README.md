@@ -80,10 +80,7 @@ The seeder creates accomplishment tracking documents with the following structur
 
 ## 📁 File Structure
 
-- `seeder-simple.js` - Main seeder file (recommended)
-- `seeder.js` - Alternative seeder using DAL layers
-- `seeder-test.js` - Simple test seeder for validation
-- `package.json` - Contains seeder scripts
+- `seeder-simple.js` - Main seeder file
 
 ## 🛠 Available Scripts
 
