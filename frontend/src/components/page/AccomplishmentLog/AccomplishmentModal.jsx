@@ -57,23 +57,36 @@ export default function AccomplishmentModal({
 
     const accomplishmentData = data.accomplishment || data.details || data;
 
+    // Helper function to safely parse dates with Manila timezone
+    const parseDate = (dateString) => {
+      if (!dateString) return undefined;
+
+      try {
+        const date = new Date(dateString);
+        // Convert to Manila timezone and get YYYY-MM-DD format
+        const localDate = date.toLocaleDateString("en-CA", {
+          timeZone: "Asia/Manila",
+        });
+        return new Date(localDate);
+      } catch (error) {
+        console.error("Error parsing date:", dateString, error);
+        return undefined;
+      }
+    };
+
     const transformed = {
       groupName: accomplishmentData?.groupName || "",
       activitiesType:
-        accomplishmentData?.activityType || accomplishmentData?.activitiesType || "", // Handle both field names
+        accomplishmentData?.activityType ||
+        accomplishmentData?.activitiesType ||
+        "", // Handle both field names
       module: accomplishmentData?.module || "",
-      dateAssigned: accomplishmentData?.dateAssigned
-        ? new Date(accomplishmentData.dateAssigned)
-        : undefined,
+      dateAssigned: parseDate(accomplishmentData?.dateAssigned),
       activities: Array.isArray(accomplishmentData?.activities)
         ? accomplishmentData.activities.join("\n")
         : accomplishmentData?.activities || "",
-      targetEndDate: accomplishmentData?.targetEndDate
-        ? new Date(accomplishmentData.targetEndDate)
-        : undefined,
-      actualEndDate: accomplishmentData?.actualEndDate
-        ? new Date(accomplishmentData.actualEndDate)
-        : undefined,
+      targetEndDate: parseDate(accomplishmentData?.targetEndDate),
+      actualEndDate: parseDate(accomplishmentData?.actualEndDate),
       status: accomplishmentData?.status || "",
       percentageOfActivities:
         accomplishmentData?.percentageOfActivity ||
@@ -163,20 +176,30 @@ export default function AccomplishmentModal({
   };
 
   const handleSubmit = async () => {
+    // Helper function to format date as YYYY-MM-DD
+    const formatDateForBackend = (date) => {
+      if (!date) return null;
+      const d = new Date(date);
+      const localDate = d.toLocaleDateString('en-CA', {
+        timeZone: 'Asia/Manila'
+      });
+      return localDate; // Returns YYYY-MM-DD format
+    };
+
     // Transform the flat state back to the backend's expected structure
     const payload = {
       groupName: accomplishment.groupName,
       activityType: accomplishment.activitiesType, // map to backend
       module: accomplishment.module,
-      dateAssigned: accomplishment.dateAssigned,
+      dateAssigned: formatDateForBackend(accomplishment.dateAssigned),
       activities: accomplishment.activities
         ? accomplishment.activities
             .split("\n")
             .map((s) => s.trim())
             .filter(Boolean)
         : [],
-      targetEndDate: accomplishment.targetEndDate,
-      actualEndDate: accomplishment.actualEndDate,
+      targetEndDate: formatDateForBackend(accomplishment.targetEndDate),
+      actualEndDate: formatDateForBackend(accomplishment.actualEndDate),
       status: accomplishment.status,
       percentageOfActivity: accomplishment.percentageOfActivities, // map to backend
       projectHeads: accomplishment.projectHeads,
@@ -197,65 +220,83 @@ export default function AccomplishmentModal({
   };
 
   const handleSave = async () => {
-  try {
-    const payload = {
-      updatedData: {
-        groupName: accomplishment.groupName,
-        activityType: accomplishment.activitiesType,
-        module: accomplishment.module,
-        dateAssigned: accomplishment.dateAssigned,
-        activities: accomplishment.activities
-          ? accomplishment.activities
-              .split("\n")
-              .map((s) => s.trim())
-              .filter(Boolean)
-          : [],
-        targetEndDate: accomplishment.targetEndDate,
-        actualEndDate: accomplishment.actualEndDate,
-        status: accomplishment.status,
-        percentageOfActivity: accomplishment.percentageOfActivities,
-        projectHeads: accomplishment.projectHeads,
+    try {
+      // Helper function to format date as YYYY-MM-DD
+      const formatDateForBackend = (date) => {
+        if (!date) return null;
+        const d = new Date(date);
+        const localDate = d.toLocaleDateString('en-CA', {
+          timeZone: 'Asia/Manila'
+        });
+        return localDate; // Returns YYYY-MM-DD format
+      };
+
+      const payload = {
+        updatedData: {
+          groupName: accomplishment.groupName,
+          activityType: accomplishment.activitiesType,
+          module: accomplishment.module,
+          dateAssigned: formatDateForBackend(accomplishment.dateAssigned),
+          activities: accomplishment.activities
+            ? accomplishment.activities
+                .split("\n")
+                .map((s) => s.trim())
+                .filter(Boolean)
+            : [],
+          targetEndDate: formatDateForBackend(accomplishment.targetEndDate),
+          actualEndDate: formatDateForBackend(accomplishment.actualEndDate),
+          status: accomplishment.status,
+          percentageOfActivity: accomplishment.percentageOfActivities,
+          projectHeads: accomplishment.projectHeads,
+        },
+      };
+
+      const token = localStorage.getItem("token");
+      const userId = token ? JSON.parse(atob(token.split(".")[1])).userId : "";
+      const date =
+        propAccomplishment?.date || new Date().toISOString().split("T")[0];
+
+      console.log("Updating accomplishment for userId:", userId, "date:", date);
+
+      await axios.post(
+        `/api/accomplishment-tracking/accomplishment-service/form?userId=${userId}&date=${date}`,
+        payload,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      console.log("Accomplishment updated successfully");
+      setEditMode("view");
+
+      // ✅ Call the refresh function to update parent component's data
+      if (onEdit) {
+        console.log("Calling onEdit to refresh data...");
+        onEdit(); // This will trigger fetchLogs() in the parent component
       }
-    };
 
-    const token = localStorage.getItem("token");
-    const userId = token ? JSON.parse(atob(token.split(".")[1])).userId : "";
-    const date = propAccomplishment?.date || new Date().toISOString().split('T')[0];
-    
-    console.log("Updating accomplishment for userId:", userId, "date:", date);
-
-    await axios.post(
-      `/api/accomplishment-tracking/accomplishment-service/form?userId=${userId}&date=${date}`,
-      payload,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-
-    console.log("Accomplishment updated successfully");
-    setEditMode("view");
-    
-    // ✅ Call the refresh function to update parent component's data
-    if (onEdit) {
-      console.log("Calling onEdit to refresh data...");
-      onEdit(); // This will trigger fetchLogs() in the parent component
+      // Optional: Show success message
+      console.log("Data refresh triggered");
+    } catch (error) {
+      console.error("Error updating accomplishment:", error);
+      alert(
+        error.response?.data?.error ||
+          "Failed to update accomplishment. Please try again."
+      );
     }
-    
-    // Optional: Show success message
-    console.log("Data refresh triggered");
-    
-  } catch (error) {
-    console.error("Error updating accomplishment:", error);
-    alert(
-      error.response?.data?.error ||
-        "Failed to update accomplishment. Please try again."
-    );
-  }
-};
+  };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+    <Dialog 
+      open={isOpen} 
+      onOpenChange={editMode === "edit" ? undefined : onClose}
+    >
+      <DialogContent className={`max-w-2xl max-h-[90vh] overflow-y-auto ${editMode === "edit" ? "[&>button]:hidden" : ""}`}>
         <DialogHeader>
-          <DialogTitle>Daily Accomplishments</DialogTitle>
+          <DialogTitle>
+            {editMode === "edit" 
+              ? "Complete Daily Accomplishments (Required)" 
+              : "Daily Accomplishments"
+            }
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="grid grid-cols-2 gap-4">
@@ -603,10 +644,9 @@ export default function AccomplishmentModal({
           <div className="flex justify-end space-x-2 pt-4">
             {editMode === "edit" && (
               <>
-                <Button variant="outline" onClick={handleClose}>
-                  Cancel
+                <Button onClick={handleSubmit} className="w-full">
+                  Submit & Time Out
                 </Button>
-                <Button onClick={handleSubmit}>Submit & Time Out</Button>
               </>
             )}
             {editMode === "view" && (
