@@ -1,3 +1,7 @@
+import axios from "axios";
+import { jwtDecode } from "jwt-decode";
+import { useEffect } from "react";
+
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +12,56 @@ import AccomplishmentModal from "./AccomplishmentModal";
 import { useTimer } from "@/context/AccomplishmentLogContext";
 
 const TimeComponent = () => {
+  const API_BASE = "/api/accomplishment-tracking/time-service";
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem("token");
+    return {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    };
+  };
+
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Get user info from JWT token
+  const getUserInfo = () => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      try {
+        const decoded = jwtDecode(token);
+        return {
+          userId: decoded.userId,
+          username:
+            decoded.username || `${decoded.firstName} ${decoded.lastName}`,
+          firstName: decoded.firstName,
+          lastName: decoded.lastName,
+        };
+      } catch (error) {
+        console.error("Error decoding token:", error);
+        return null;
+      }
+    }
+    return null;
+  };
+
+  useEffect(() => {
+    const userInfo = getUserInfo();
+    setUser(userInfo);
+
+    if (userInfo) {
+      fetchCurrentActivity();
+      
+      // Set up periodic sync every 30 seconds
+      const interval = setInterval(() => {
+        fetchCurrentActivity();
+      }, 30000);
+      
+      return () => clearInterval(interval);
+    }
+  }, []);
+
   const {
     currentTime,
     isTimedIn,
@@ -22,10 +76,67 @@ const TimeComponent = () => {
 
   const [isTimeOutModalOpen, setIsTimeOutModalOpen] = useState(false);
 
+  // Add this function to fetch current activity from backend
+  const fetchCurrentActivity = async () => {
+    setIsLoading(true);
+    try {
+      const response = await axios.get(`${API_BASE}/activity`, {
+        headers: getAuthHeaders(),
+      });
+
+      const { timeLogs } = response.data;
+      if (timeLogs) {
+        setIsTimedIn(!!timeLogs.timeIn && !timeLogs.timeOut);
+        setIsOnBreak(!!timeLogs.lunchBreakStart && !timeLogs.lunchBreakEnd);
+
+        // Fixed time calculation
+        if (timeLogs.timeIn && !timeLogs.timeOut) {
+          // Get today's date in YYYY-MM-DD format (matching backend)
+          const today = new Date().toLocaleDateString("en-CA", {
+            timeZone: "Asia/Manila",
+          });
+
+          // Create proper datetime by combining date and time
+          const timeInDateTime = new Date(`${today}T${timeLogs.timeIn}`);
+          const now = new Date();
+
+          let diffInSeconds = Math.floor((now - timeInDateTime) / 1000);
+
+          // Subtract lunch break time if applicable
+          if (timeLogs.lunchBreakStart && timeLogs.lunchBreakEnd) {
+            const lunchStart = new Date(`${today}T${timeLogs.lunchBreakStart}`);
+            const lunchEnd = new Date(`${today}T${timeLogs.lunchBreakEnd}`);
+            const lunchDuration = Math.floor((lunchEnd - lunchStart) / 1000);
+            diffInSeconds -= lunchDuration;
+          } else if (
+            timeLogs.lunchBreakStart &&
+            !timeLogs.lunchBreakEnd &&
+            isOnBreak
+          ) {
+            // Currently on break - subtract break time so far
+            const lunchStart = new Date(`${today}T${timeLogs.lunchBreakStart}`);
+            const breakDuration = Math.floor((now - lunchStart) / 1000);
+            diffInSeconds -= breakDuration;
+          }
+
+          setHoursWorked(Math.max(0, diffInSeconds));
+        }
+      }
+    } catch (error) {
+      if (error.response?.status !== 404) {
+        console.error("Error fetching current activity:", error);
+        setError("Failed to fetch current activity");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const addLog = (message) => {
+    const username = user?.username || "User";
     const newLog = {
       id: Date.now().toString(),
-      message,
+      message: message.replace("**User**", `${username}`),
       timestamp: currentTime.toLocaleTimeString("en-US", {
         hour12: true,
         hour: "2-digit",
@@ -35,30 +146,89 @@ const TimeComponent = () => {
     setLogs((prev) => [newLog, ...prev]);
   };
 
-  const handleTimeInOut = () => {
+  const handleTimeInOut = async () => {
     if (isTimedIn) {
       setIsTimeOutModalOpen(true);
     } else {
-      setIsTimedIn(true);
-      addLog("**User** has timed in");
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await axios.post(`${API_BASE}/time-in`, {}, {
+          headers: getAuthHeaders(),
+        });
+
+        setIsTimedIn(true);
+        addLog("**User** has timed in");
+        
+        // Refresh state from backend
+        await fetchCurrentActivity();
+      } catch (error) {
+        console.error("Error timing in:", error);
+        
+        // Handle specific backend errors
+        if (error.response?.status === 400 && error.response?.data?.error?.includes('already recorded')) {
+          setError('You have already timed in today');
+          // Sync state with backend
+          await fetchCurrentActivity();
+        } else {
+          setError(error.response?.data?.error || "Failed to time in");
+        }
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
-  const handleAccomplishmentSubmit = () => {
-    setIsTimedIn(false);
-    setIsOnBreak(false);
-    addLog("**User** has timed out and submitted daily accomplishments");
-    setHoursWorked(0);
-    setIsTimeOutModalOpen(false);
+  const handleAccomplishmentSubmit = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await axios.post(
+        `${API_BASE}/time-out`,
+        {},
+        {
+          headers: getAuthHeaders(),
+        }
+      );
+
+      setIsTimedIn(false);
+      setIsOnBreak(false);
+      addLog("**User** has timed out and submitted daily accomplishments");
+      setHoursWorked(0);
+      setIsTimeOutModalOpen(false);
+    } catch (error) {
+      console.error("Error timing out:", error);
+      setError(error.response?.data?.error || "Failed to time out");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleBreak = () => {
-    if (isOnBreak) {
-      setIsOnBreak(false);
-      addLog("**User**  has ended break");
-    } else {
-      setIsOnBreak(true);
-      addLog("**User** has started break");
+  const handleBreak = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const endpoint = isOnBreak ? "end-lunch-break" : "lunch-break";
+
+      const response = await axios.post(`${API_BASE}/${endpoint}`, {}, {
+        headers: getAuthHeaders(),
+      });
+
+      if (isOnBreak) {
+        setIsOnBreak(false);
+        addLog("**User** has ended break");
+      } else {
+        setIsOnBreak(true);
+        addLog("**User** has started break");
+      }
+      
+      // Refresh state from backend
+      await fetchCurrentActivity();
+    } catch (error) {
+      console.error("Error updating break status:", error);
+      setError(error.response?.data?.error || "Failed to update break status");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -82,6 +252,24 @@ const TimeComponent = () => {
 
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-6">
+      {/* Error Display */}
+      {error && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="pt-6">
+            <div className="text-center text-red-600">
+              <p className="text-sm">{error}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                onClick={() => setError(null)}
+              >
+                Dismiss
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       {/* Time Display Section */}
       <Card>
         <CardContent className="pt-6">
@@ -130,9 +318,10 @@ const TimeComponent = () => {
                 size="lg"
                 variant="destructive"
                 className="h-16 text-lg font-semibold"
+                disabled={isLoading}
               >
                 <StopCircle className="mr-2 h-5 w-5" />
-                Time Out
+                {isLoading ? "Processing..." : "Time Out"}
               </Button>
             ) : (
               <Button
@@ -140,9 +329,10 @@ const TimeComponent = () => {
                 size="lg"
                 variant="default"
                 className="h-16 text-lg font-semibold bg-green-500 hover:bg-green-700"
+                disabled={isLoading}
               >
                 <Play className="mr-2 h-5 w-5" />
-                Time In
+                {isLoading ? "Processing..." : "Time In"}
               </Button>
             )}
 
@@ -150,10 +340,12 @@ const TimeComponent = () => {
               onClick={handleBreak}
               size="lg"
               variant={isOnBreak ? "secondary" : "outline"}
-              disabled={!isTimedIn}
+              disabled={!isTimedIn || isLoading}
               className="h-16 text-lg font-semibold"
             >
-              {isOnBreak ? (
+              {isLoading ? (
+                "Processing..."
+              ) : isOnBreak ? (
                 <>
                   <Pause className="mr-2 h-5 w-5" />
                   End Lunch Break

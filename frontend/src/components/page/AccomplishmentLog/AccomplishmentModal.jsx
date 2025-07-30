@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,21 +27,101 @@ import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { X } from "lucide-react";
 
-export default function AccomplishmentModal({ isOpen, onClose, onSubmit }) {
+import axios from "axios";
+
+export default function AccomplishmentModal({
+  isOpen,
+  onClose,
+  onSubmit,
+  mode = "edit",
+  accomplishment: propAccomplishment,
+  onEdit,
+}) {
+  // Transform the nested data structure to flat structure for the modal
+  const getTransformedData = (data) => {
+    if (!data)
+      return {
+        groupName: "",
+        activitiesType: "",
+        module: "",
+        dateAssigned: undefined,
+        activities: "",
+        targetEndDate: undefined,
+        actualEndDate: undefined,
+        status: "",
+        percentageOfActivities: 0,
+        projectHeads: [],
+      };
+
+    console.log("Raw data received:", data); // Debug log
+
+    const transformed = {
+      groupName: data.details?.groupName || "",
+      activitiesType: data.details?.activitiesType || "",
+      module: data.details?.module || "",
+      dateAssigned: data.details?.dateAssigned
+        ? new Date(data.details.dateAssigned)
+        : undefined,
+      activities: Array.isArray(data.details?.activities)
+        ? data.details.activities.join("\n")
+        : data.details?.activities || "",
+      targetEndDate: data.details?.targetEndDate
+        ? new Date(data.details.targetEndDate)
+        : undefined,
+      actualEndDate: data.details?.actualEndDate
+        ? new Date(data.details.actualEndDate)
+        : undefined,
+      status: data.details?.status || "",
+      percentageOfActivities: data.details?.percentageOfActivities || 0,
+      projectHeads: data.details?.projectHeads || [],
+    };
+
+    console.log("Transformed data:", transformed); // Debug log
+    return transformed;
+  };
+
   const [accomplishment, setAccomplishment] = useState({
     groupName: "",
     activitiesType: "",
     module: "",
     dateAssigned: undefined,
-    activities: [],
+    activities: "",
     targetEndDate: undefined,
     actualEndDate: undefined,
     status: "",
     percentageOfActivities: 0,
     projectHeads: [],
   });
-
+  const [editMode, setEditMode] = useState(mode);
   const [currentProjectHead, setCurrentProjectHead] = useState("");
+
+  // Update accomplishment state when propAccomplishment changes or modal opens
+  useEffect(() => {
+    if (propAccomplishment && isOpen) {
+      const transformedData = getTransformedData(propAccomplishment);
+      console.log("Setting accomplishment state to:", transformedData); // Debug log
+      setAccomplishment(transformedData);
+      setEditMode(mode); // Reset edit mode when modal opens
+    }
+  }, [propAccomplishment, isOpen, mode]);
+
+  console.log("Current accomplishment state:", accomplishment); // Debug log
+
+  // Helper to check if a field is editable
+  const isEditable = (field) => {
+    if (editMode === "edit") return true;
+    if (editMode === "partial-edit") {
+      return ["actualEndDate", "status", "percentageOfActivities"].includes(
+        field
+      );
+    }
+    return false;
+  };
+
+  const renderField = (field, value, input) => {
+    // Always return the input component, but it will be disabled based on isEditable
+    return input;
+  };
 
   const addProjectHead = () => {
     if (
@@ -70,25 +150,54 @@ export default function AccomplishmentModal({ isOpen, onClose, onSubmit }) {
     }
   };
 
-  const handleSubmit = () => {
-    onSubmit && onSubmit(accomplishment);
-    setAccomplishment({
-      groupName: "",
-      activitiesType: "",
-      module: "",
-      dateAssigned: undefined,
-      activities: [],
-      targetEndDate: undefined,
-      actualEndDate: undefined,
-      status: "",
-      percentageOfActivities: 0,
-      projectHeads: [],
-    });
-    setCurrentProjectHead("");
+  const handleSubmit = async () => {
+    // Transform the flat state back to the backend's expected structure
+    const payload = {
+      groupName: accomplishment.groupName,
+      activityType: accomplishment.activitiesType, // <-- FIXED
+      module: accomplishment.module,
+      dateAssigned: accomplishment.dateAssigned,
+      activities: accomplishment.activities.split("\n"),
+      targetEndDate: accomplishment.targetEndDate,
+      actualEndDate: accomplishment.actualEndDate,
+      status: accomplishment.status,
+      percentageOfActivity: accomplishment.percentageOfActivities, // <-- FIXED
+      projectHeads: accomplishment.projectHeads,
+    };
+
+    try {
+      const token = localStorage.getItem("token");
+      await axios.post(
+        "/api/accomplishment-tracking/accomplishment-service/submit",
+        payload,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      onSubmit && onSubmit(accomplishment);
+      handleClose();
+    } catch (error) {
+      alert(
+        error.response?.data?.error ||
+          "Failed to submit accomplishment. Please try again."
+      );
+    }
   };
 
   const handleClose = () => {
     onClose && onClose();
+  };
+
+  const handleEdit = () => {
+    setEditMode("partial-edit");
+  };
+
+  const handleSave = () => {
+    // Handle save logic for partial edit
+    setEditMode("view");
   };
 
   return (
@@ -103,101 +212,121 @@ export default function AccomplishmentModal({ isOpen, onClose, onSubmit }) {
               <Label htmlFor="groupName">
                 Group Name<span className="text-red-500">*</span>
               </Label>
-              <Input
-                id="groupName"
-                value={accomplishment.groupName}
-                onChange={(e) =>
-                  setAccomplishment((prev) => ({
-                    ...prev,
-                    groupName: e.target.value,
-                  }))
-                }
-                placeholder="Enter group name"
-              />
+              {renderField(
+                "groupName",
+                accomplishment.groupName,
+                <Input
+                  id="groupName"
+                  value={accomplishment.groupName}
+                  onChange={(e) =>
+                    setAccomplishment((prev) => ({
+                      ...prev,
+                      groupName: e.target.value,
+                    }))
+                  }
+                  placeholder="Enter group name"
+                  disabled={!isEditable("groupName")}
+                  className={!isEditable("groupName") ? "bg-gray-50" : ""}
+                />
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="activitiesType">
                 Type of Activities<span className="text-red-500">*</span>
               </Label>
-              <Select
-                value={accomplishment.activitiesType}
-                onValueChange={(value) =>
-                  setAccomplishment((prev) => ({
-                    ...prev,
-                    activitiesType: value,
-                  }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select activities type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="brts-preparation">
-                    BRTS Preparation
-                  </SelectItem>
-                  <SelectItem value="brts-testing">BRTS Testing</SelectItem>
-                  <SelectItem value="brts-re-testing">
-                    BRTS Re-Testing
-                  </SelectItem>
-                  <SelectItem value="brss-testing">BRSS Testing</SelectItem>
-                  <SelectItem value="environment-testing">
-                    Environment Testing
-                  </SelectItem>
-                  <SelectItem value="user-guide-manual">
-                    User Guide/Manual Preparation
-                  </SelectItem>
-                  <SelectItem value="other-activities">
-                    Other Activities
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+              {renderField(
+                "activitiesType",
+                accomplishment.activitiesType,
+                <Select
+                  value={accomplishment.activitiesType}
+                  onValueChange={(value) =>
+                    setAccomplishment((prev) => ({
+                      ...prev,
+                      activitiesType: value,
+                    }))
+                  }
+                  disabled={!isEditable("activitiesType")}
+                >
+                  <SelectTrigger
+                    className={
+                      !isEditable("activitiesType") ? "bg-gray-50" : ""
+                    }
+                  >
+                    <SelectValue placeholder="Select activities type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Code Review">Code Review</SelectItem>
+                    <SelectItem value="Feature Implementation">
+                      Feature Implementation
+                    </SelectItem>
+                    <SelectItem value="Testing">Testing</SelectItem>
+                    <SelectItem value="Bug Fixes">Bug Fixes</SelectItem>
+                    <SelectItem value="Documentation">Documentation</SelectItem>
+                    <SelectItem value="Other Activities">
+                      Other Activities
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </div>
-
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="module">Module</Label>
-              <Input
-                id="module"
-                value={accomplishment.module}
-                onChange={(e) =>
-                  setAccomplishment((prev) => ({
-                    ...prev,
-                    module: e.target.value,
-                  }))
-                }
-                placeholder="Enter module name"
-              />
+              {renderField(
+                "module",
+                accomplishment.module,
+                <Input
+                  id="module"
+                  value={accomplishment.module}
+                  onChange={(e) =>
+                    setAccomplishment((prev) => ({
+                      ...prev,
+                      module: e.target.value,
+                    }))
+                  }
+                  placeholder="Enter module name"
+                  disabled={!isEditable("module")}
+                  className={!isEditable("module") ? "bg-gray-50" : ""}
+                />
+              )}
             </div>
             <div className="space-y-2">
               <Label>Date Assigned</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal bg-transparent"
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {accomplishment.dateAssigned
-                      ? format(accomplishment.dateAssigned, "PPP")
-                      : "Pick a date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={accomplishment.dateAssigned}
-                    onSelect={(date) =>
-                      setAccomplishment((prev) => ({
-                        ...prev,
-                        dateAssigned: date,
-                      }))
-                    }
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+              {renderField(
+                "dateAssigned",
+                accomplishment.dateAssigned
+                  ? format(accomplishment.dateAssigned, "PPP")
+                  : "Not assigned",
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={`w-full justify-start text-left font-normal bg-transparent ${!isEditable("dateAssigned") ? "bg-gray-50" : ""}`}
+                      disabled={!isEditable("dateAssigned")}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {accomplishment.dateAssigned
+                        ? format(accomplishment.dateAssigned, "PPP")
+                        : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={accomplishment.dateAssigned}
+                      onSelect={(date) =>
+                        setAccomplishment((prev) => ({
+                          ...prev,
+                          dateAssigned: date,
+                        }))
+                      }
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              )}
             </div>
           </div>
 
@@ -205,18 +334,24 @@ export default function AccomplishmentModal({ isOpen, onClose, onSubmit }) {
             <Label htmlFor="activities">
               Activities<span className="text-red-500">*</span>
             </Label>
-            <Textarea
-              id="activities"
-              value={accomplishment.activities}
-              onChange={(e) =>
-                setAccomplishment((prev) => ({
-                  ...prev,
-                  activities: e.target.value,
-                }))
-              }
-              placeholder="Describe your activities for the day..."
-              className="min-h-[100px]"
-            />
+            {renderField(
+              "activities",
+              accomplishment.activities,
+              <Textarea
+                id="activities"
+                value={accomplishment.activities}
+                onChange={(e) =>
+                  setAccomplishment((prev) => ({
+                    ...prev,
+                    activities: e.target.value,
+                  }))
+                }
+                placeholder="Describe your activities for the day...
+(Enter one activity per line)"
+                className={`min-h-[100px] ${!isEditable("activities") ? "bg-gray-50" : ""}`}
+                disabled={!isEditable("activities")}
+              />
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -224,63 +359,76 @@ export default function AccomplishmentModal({ isOpen, onClose, onSubmit }) {
               <Label>
                 Target End Date<span className="text-red-500">*</span>
               </Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal bg-transparent"
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {accomplishment.targetEndDate
-                      ? format(accomplishment.targetEndDate, "PPP")
-                      : "Pick a date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={accomplishment.targetEndDate}
-                    onSelect={(date) =>
-                      setAccomplishment((prev) => ({
-                        ...prev,
-                        targetEndDate: date,
-                      }))
-                    }
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+              {renderField(
+                "targetEndDate",
+                accomplishment.targetEndDate
+                  ? format(accomplishment.targetEndDate, "PPP")
+                  : "Not set",
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={`w-full justify-start text-left font-normal bg-transparent ${!isEditable("targetEndDate") ? "bg-gray-50" : ""}`}
+                      disabled={!isEditable("targetEndDate")}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {accomplishment.targetEndDate
+                        ? format(accomplishment.targetEndDate, "PPP")
+                        : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={accomplishment.targetEndDate}
+                      onSelect={(date) =>
+                        setAccomplishment((prev) => ({
+                          ...prev,
+                          targetEndDate: date,
+                        }))
+                      }
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              )}
             </div>
             <div className="space-y-2">
               <Label>
                 Actual End Date<span className="text-red-500">*</span>
               </Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal bg-transparent"
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {accomplishment.actualEndDate
-                      ? format(accomplishment.actualEndDate, "PPP")
-                      : "Pick a date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={accomplishment.actualEndDate}
-                    onSelect={(date) =>
-                      setAccomplishment((prev) => ({
-                        ...prev,
-                        actualEndDate: date,
-                      }))
-                    }
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+              {renderField(
+                "actualEndDate",
+                accomplishment.actualEndDate
+                  ? format(accomplishment.actualEndDate, "PPP")
+                  : "Not completed",
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal bg-transparent"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {accomplishment.actualEndDate
+                        ? format(accomplishment.actualEndDate, "PPP")
+                        : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={accomplishment.actualEndDate}
+                      onSelect={(date) =>
+                        setAccomplishment((prev) => ({
+                          ...prev,
+                          actualEndDate: date,
+                        }))
+                      }
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              )}
             </div>
           </div>
 
@@ -289,47 +437,61 @@ export default function AccomplishmentModal({ isOpen, onClose, onSubmit }) {
               <Label htmlFor="status">
                 Current Status<span className="text-red-500">*</span>
               </Label>
-              <Select
-                value={accomplishment.status}
-                onValueChange={(value) =>
-                  setAccomplishment((prev) => ({
-                    ...prev,
-                    status: value,
-                  }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="done">Done</SelectItem>
-                  <SelectItem value="ongoing">Ongoing</SelectItem>
-                  <SelectItem value="not-yet-started">
-                    Not Yet Started
-                  </SelectItem>
-                  <SelectItem value="reassigned">Reassigned</SelectItem>
-                  <SelectItem value="on-hold">On Hold</SelectItem>
-                </SelectContent>
-              </Select>
+              {renderField(
+                "status",
+                accomplishment.status,
+                <Select
+                  value={accomplishment.status}
+                  onValueChange={(value) =>
+                    setAccomplishment((prev) => ({
+                      ...prev,
+                      status: value,
+                    }))
+                  }
+                  disabled={!isEditable("status")}
+                >
+                  <SelectTrigger
+                    className={!isEditable("status") ? "bg-gray-50" : ""}
+                  >
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Completed">Completed</SelectItem>
+                    <SelectItem value="Ongoing">Ongoing</SelectItem>
+                    <SelectItem value="Not Yet Started">
+                      Not Yet Started
+                    </SelectItem>
+                    <SelectItem value="Reassigned">Reassigned</SelectItem>
+                    <SelectItem value="On Hold">On Hold</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="percentage">Percentage of Activities (%)</Label>
-              <Input
-                id="percentage"
-                type="number"
-                min="0"
-                max="100"
-                value={accomplishment.percentageOfActivities}
-                onChange={(e) =>
-                  setAccomplishment((prev) => ({
-                    ...prev,
-                    percentageOfActivities:
-                      Number.parseInt(e.target.value) || 0,
-                  }))
-                }
-                disabled={accomplishment.status !== "ongoing"}
-                placeholder="0-100"
-              />
+              {renderField(
+                "percentageOfActivities",
+                `${accomplishment.percentageOfActivities}%`,
+                <Input
+                  id="percentage"
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={accomplishment.percentageOfActivities}
+                  onChange={(e) =>
+                    setAccomplishment((prev) => ({
+                      ...prev,
+                      percentageOfActivities:
+                        Number.parseInt(e.target.value) || 0,
+                    }))
+                  }
+                  placeholder="0-100"
+                  disabled={!isEditable("percentageOfActivities")}
+                  className={
+                    !isEditable("percentageOfActivities") ? "bg-gray-50" : ""
+                  }
+                />
+              )}
             </div>
           </div>
 
@@ -337,6 +499,7 @@ export default function AccomplishmentModal({ isOpen, onClose, onSubmit }) {
             <Label htmlFor="projectHeads">
               Project Heads<span className="text-red-500">*</span>
             </Label>
+            {/* Always show input format, even in view mode */}
             <div className="space-y-2">
               <div className="flex gap-2">
                 <Input
@@ -345,45 +508,71 @@ export default function AccomplishmentModal({ isOpen, onClose, onSubmit }) {
                   onChange={(e) => setCurrentProjectHead(e.target.value)}
                   onKeyPress={handleKeyPress}
                   placeholder="Enter project head name and press Enter"
-                  className="flex-1"
+                  className={`flex-1 ${!isEditable("projectHeads") ? "bg-gray-50" : ""}`}
+                  disabled={!isEditable("projectHeads")}
                 />
                 <Button
                   type="button"
                   onClick={addProjectHead}
                   variant="outline"
                   size="sm"
+                  disabled={!isEditable("projectHeads")}
                 >
                   Add
                 </Button>
               </div>
-              {accomplishment.projectHeads.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {accomplishment.projectHeads.map((head, index) => (
-                    <Badge
-                      key={index}
-                      variant="secondary"
-                      className="flex items-center gap-1"
-                    >
-                      {head}
-                      <button
-                        type="button"
-                        onClick={() => removeProjectHead(head)}
-                        className="ml-1 hover:bg-destructive/20 rounded-full p-0.5"
+              {Array.isArray(accomplishment.projectHeads) &&
+                accomplishment.projectHeads.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {accomplishment.projectHeads.map((head, index) => (
+                      <Badge
+                        key={index}
+                        variant="secondary"
+                        className="flex items-center gap-1"
                       >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              )}
+                        {head}
+                        {isEditable("projectHeads") && (
+                          <button
+                            type="button"
+                            onClick={() => removeProjectHead(head)}
+                            className="ml-1 hover:bg-destructive/20 rounded-full p-0.5"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
             </div>
           </div>
 
+          {/* Buttons based on mode */}
           <div className="flex justify-end space-x-2 pt-4">
-            <Button variant="outline" onClick={handleClose}>
-              Cancel
-            </Button>
-            <Button onClick={handleSubmit}>Submit & Time Out</Button>
+            {editMode === "edit" && (
+              <>
+                <Button variant="outline" onClick={handleClose}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSubmit}>Submit & Time Out</Button>
+              </>
+            )}
+            {editMode === "view" && (
+              <>
+                <Button variant="outline" onClick={handleClose}>
+                  Exit
+                </Button>
+                <Button onClick={handleEdit}>Edit</Button>
+              </>
+            )}
+            {editMode === "partial-edit" && (
+              <>
+                <Button variant="outline" onClick={() => setEditMode("view")}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSave}>Save</Button>
+              </>
+            )}
           </div>
         </div>
       </DialogContent>
