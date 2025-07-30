@@ -55,25 +55,31 @@ export default function AccomplishmentModal({
 
     console.log("Raw data received:", data); // Debug log
 
+    const accomplishmentData = data.accomplishment || data.details || data;
+
     const transformed = {
-      groupName: data.details?.groupName || "",
-      activitiesType: data.details?.activitiesType || "",
-      module: data.details?.module || "",
-      dateAssigned: data.details?.dateAssigned
-        ? new Date(data.details.dateAssigned)
+      groupName: accomplishmentData?.groupName || "",
+      activitiesType:
+        accomplishmentData?.activityType || accomplishmentData?.activitiesType || "", // Handle both field names
+      module: accomplishmentData?.module || "",
+      dateAssigned: accomplishmentData?.dateAssigned
+        ? new Date(accomplishmentData.dateAssigned)
         : undefined,
-      activities: Array.isArray(data.details?.activities)
-        ? data.details.activities.join("\n")
-        : data.details?.activities || "",
-      targetEndDate: data.details?.targetEndDate
-        ? new Date(data.details.targetEndDate)
+      activities: Array.isArray(accomplishmentData?.activities)
+        ? accomplishmentData.activities.join("\n")
+        : accomplishmentData?.activities || "",
+      targetEndDate: accomplishmentData?.targetEndDate
+        ? new Date(accomplishmentData.targetEndDate)
         : undefined,
-      actualEndDate: data.details?.actualEndDate
-        ? new Date(data.details.actualEndDate)
+      actualEndDate: accomplishmentData?.actualEndDate
+        ? new Date(accomplishmentData.actualEndDate)
         : undefined,
-      status: data.details?.status || "",
-      percentageOfActivities: data.details?.percentageOfActivities || 0,
-      projectHeads: data.details?.projectHeads || [],
+      status: accomplishmentData?.status || "",
+      percentageOfActivities:
+        accomplishmentData?.percentageOfActivity ||
+        accomplishmentData?.percentageOfActivities ||
+        0, // Handle both field names
+      projectHeads: accomplishmentData?.projectHeads || [],
     };
 
     console.log("Transformed data:", transformed); // Debug log
@@ -102,10 +108,16 @@ export default function AccomplishmentModal({
       console.log("Setting accomplishment state to:", transformedData); // Debug log
       setAccomplishment(transformedData);
       setEditMode(mode); // Reset edit mode when modal opens
+      console.log("Modal opened with mode:", mode); // Debug log
+    } else if (isOpen && !propAccomplishment) {
+      // When opening for timeout (new accomplishment), should be in edit mode
+      console.log("Modal opened for new accomplishment with mode:", mode); // Debug log
+      setEditMode(mode);
     }
   }, [propAccomplishment, isOpen, mode]);
 
   console.log("Current accomplishment state:", accomplishment); // Debug log
+  console.log("Current editMode:", editMode); // Debug log
 
   // Helper to check if a field is editable
   const isEditable = (field) => {
@@ -154,37 +166,26 @@ export default function AccomplishmentModal({
     // Transform the flat state back to the backend's expected structure
     const payload = {
       groupName: accomplishment.groupName,
-      activityType: accomplishment.activitiesType, // <-- FIXED
+      activityType: accomplishment.activitiesType, // map to backend
       module: accomplishment.module,
       dateAssigned: accomplishment.dateAssigned,
-      activities: accomplishment.activities.split("\n"),
+      activities: accomplishment.activities
+        ? accomplishment.activities
+            .split("\n")
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : [],
       targetEndDate: accomplishment.targetEndDate,
       actualEndDate: accomplishment.actualEndDate,
       status: accomplishment.status,
-      percentageOfActivity: accomplishment.percentageOfActivities, // <-- FIXED
+      percentageOfActivity: accomplishment.percentageOfActivities, // map to backend
       projectHeads: accomplishment.projectHeads,
     };
 
-    try {
-      const token = localStorage.getItem("token");
-      await axios.post(
-        "/api/accomplishment-tracking/accomplishment-service/submit",
-        payload,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-      onSubmit && onSubmit(accomplishment);
-      handleClose();
-    } catch (error) {
-      alert(
-        error.response?.data?.error ||
-          "Failed to submit accomplishment. Please try again."
-      );
-    }
+    // Pass the payload to the parent component to handle the API calls
+    // Parent will first call time-out, then submit the form
+    onSubmit && onSubmit(payload);
+    handleClose();
   };
 
   const handleClose = () => {
@@ -195,10 +196,60 @@ export default function AccomplishmentModal({
     setEditMode("partial-edit");
   };
 
-  const handleSave = () => {
-    // Handle save logic for partial edit
+  const handleSave = async () => {
+  try {
+    const payload = {
+      updatedData: {
+        groupName: accomplishment.groupName,
+        activityType: accomplishment.activitiesType,
+        module: accomplishment.module,
+        dateAssigned: accomplishment.dateAssigned,
+        activities: accomplishment.activities
+          ? accomplishment.activities
+              .split("\n")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [],
+        targetEndDate: accomplishment.targetEndDate,
+        actualEndDate: accomplishment.actualEndDate,
+        status: accomplishment.status,
+        percentageOfActivity: accomplishment.percentageOfActivities,
+        projectHeads: accomplishment.projectHeads,
+      }
+    };
+
+    const token = localStorage.getItem("token");
+    const userId = token ? JSON.parse(atob(token.split(".")[1])).userId : "";
+    const date = propAccomplishment?.date || new Date().toISOString().split('T')[0];
+    
+    console.log("Updating accomplishment for userId:", userId, "date:", date);
+
+    await axios.post(
+      `/api/accomplishment-tracking/accomplishment-service/form?userId=${userId}&date=${date}`,
+      payload,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    console.log("Accomplishment updated successfully");
     setEditMode("view");
-  };
+    
+    // ✅ Call the refresh function to update parent component's data
+    if (onEdit) {
+      console.log("Calling onEdit to refresh data...");
+      onEdit(); // This will trigger fetchLogs() in the parent component
+    }
+    
+    // Optional: Show success message
+    console.log("Data refresh triggered");
+    
+  } catch (error) {
+    console.error("Error updating accomplishment:", error);
+    alert(
+      error.response?.data?.error ||
+        "Failed to update accomplishment. Please try again."
+    );
+  }
+};
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -406,7 +457,8 @@ export default function AccomplishmentModal({
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
-                      className="w-full justify-start text-left font-normal bg-transparent"
+                      className={`w-full justify-start text-left font-normal bg-transparent ${!isEditable("actualEndDate") ? "bg-gray-50" : ""}`}
+                      disabled={!isEditable("actualEndDate")}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {accomplishment.actualEndDate
