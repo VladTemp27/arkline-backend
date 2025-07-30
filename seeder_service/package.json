@@ -1,0 +1,23 @@
+{
+  "name": "arkline-hr-seeder",
+  "version": "1.0.0",
+  "description": "Database seeder for Arkline HR webapp",
+  "main": "seeder.js",
+  "type": "module",
+  "scripts": {
+    "seed": "node seeder-simple.js",
+    "seed:dev": "node --watch seeder-simple.js",
+    "seed:test": "node seeder-test.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "mongodb": "^6.18.0"
+  },
+  "keywords": [
+    "seeder",
+    "database",
+    "mongodb"
+  ],
+  "author": "Arkline HR Team",
+  "license": "ISC"
+}
