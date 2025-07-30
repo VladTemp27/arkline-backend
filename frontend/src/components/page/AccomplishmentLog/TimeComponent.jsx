@@ -28,14 +28,19 @@ const TimeComponent = () => {
     fetchCurrentActivity,
     getAuthHeaders,
     getUserInfo,
-    timeOutCompleted,
+    getTimeOutCompleted,
     setTimeOutCompleted,
   } = useTimer();
 
   // Check if user has timed out but hasn't submitted accomplishment form
   const checkForPendingTimeOut = async () => {
     try {
-      // This function only checks for PENDING timeouts (after page refresh)
+      // Check if timeout was already completed today (persistent check)
+      if (getTimeOutCompleted()) {
+        console.log("Timeout already completed today, skipping modal");
+        return;
+      }
+      
       // Don't check if we're currently in a timeout session or if user is timed in
       if (isTimedIn || isTimeOutModalOpen) return;
       
@@ -54,14 +59,26 @@ const TimeComponent = () => {
         log.message.includes('timed out')
       );
 
+      // ✅ NEW: Also check if there's a recent time-in entry after the timeout
+      // If user has timed in after the timeout, don't show modal (they've started a new session)
+      const hasRecentTimeIn = logs.some(log => 
+        log.type === 'timeIn' && 
+        log.message.includes(username) &&
+        log.message.includes('timed in')
+      );
+
       console.log("Has timeout entry:", hasTimeOut);
+      console.log("Has recent time-in entry:", hasRecentTimeIn);
       console.log("Current isTimedIn state:", isTimedIn);
 
-      // Only show modal if there's a timeout but user is not currently timed in
-      // AND we haven't completed the timeout in this session
-      if (hasTimeOut && !isTimedIn && !isTimeOutModalOpen && !timeOutCompleted) {
-        console.log("Detected pending timeout - showing modal");
+      // ✅ FIXED: Only show modal if there's a timeout BUT no recent time-in
+      // This means user refreshed during accomplishment form, not starting new session
+      if (hasTimeOut && !hasRecentTimeIn && !isTimedIn && !isTimeOutModalOpen) {
+        console.log("Detected pending timeout (no recent time-in) - showing modal");
         setIsTimeOutModalOpen(true);
+      } else if (hasTimeOut && hasRecentTimeIn) {
+        console.log("Found timeout but user has timed in again - marking as completed");
+        setTimeOutCompleted(true); // Mark as completed since they've moved on to a new session
       }
     } catch (error) {
       console.error("Error checking for pending timeout:", error);
@@ -73,7 +90,7 @@ const TimeComponent = () => {
     if (activityData?.timeLogs) {
       checkForPendingTimeOut();
     }
-  }, [activityData, isTimedIn, isTimeOutModalOpen, timeOutCompleted]);
+  }, [activityData, isTimedIn, isTimeOutModalOpen]);
 
   const handleTimeInOut = async () => {
     if (isTimedIn) {
@@ -86,8 +103,6 @@ const TimeComponent = () => {
         });
         console.log("Timeout recorded successfully:", response.data);
         
-        // Reset the completion flag when starting a new timeout
-        setTimeOutCompleted(false);
         setIsTimeOutModalOpen(true);
       } catch (error) {
         console.error("Error timing out:", error);
@@ -96,7 +111,7 @@ const TimeComponent = () => {
         setIsLoading(false);
       }
     } else {
-      setTimeOutCompleted(false); // Reset flag when timing in
+      setTimeOutCompleted(false); // Reset flag when timing in (for new day)
       setIsLoading(true);
       setError(null);
       try {
@@ -140,7 +155,7 @@ const handleAccomplishmentSubmit = async (accomplishmentData) => {
     setIsTimedIn(false);
     setIsOnBreak(false);
     setIsTimeOutModalOpen(false);
-    setTimeOutCompleted(true); // ✅ Mark timeout as completed
+    setTimeOutCompleted(true); // ✅ Mark timeout as completed (persisted in localStorage)
     await fetchCurrentActivity();
   } catch (error) {
     console.error("Error submitting accomplishment:", error);

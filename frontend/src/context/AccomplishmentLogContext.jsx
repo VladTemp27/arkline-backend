@@ -17,7 +17,37 @@ export const TimerProvider = ({ children }) => {
   const [isOnBreak, setIsOnBreak] = useState(false);
   const [user, setUser] = useState(null);
   const [activityData, setActivityData] = useState(null); // Store the full activity response
-  const [timeOutCompleted, setTimeOutCompleted] = useState(false); // Track if timeout is completed
+  
+  // Get today's date in YYYY-MM-DD format for localStorage key
+  const getTodayKey = () => {
+    return new Date().toLocaleDateString("en-CA", {
+      timeZone: "Asia/Manila",
+    });
+  };
+  
+  // Check if timeout was completed today
+  const getTimeOutCompleted = useCallback(() => {
+    const today = getTodayKey();
+    const username = localStorage.getItem("username");
+    if (!username) return false;
+    
+    const key = `timeOutCompleted_${username}_${today}`;
+    return localStorage.getItem(key) === 'true';
+  }, []);
+  
+  // Set timeout completion status for today
+  const setTimeOutCompleted = useCallback((completed) => {
+    const today = getTodayKey();
+    const username = localStorage.getItem("username");
+    if (!username) return;
+    
+    const key = `timeOutCompleted_${username}_${today}`;
+    if (completed) {
+      localStorage.setItem(key, 'true');
+    } else {
+      localStorage.removeItem(key);
+    }
+  }, []);
 
   // API configuration
   const API_BASE = "/api/accomplishment-tracking/time-service";
@@ -217,7 +247,7 @@ export const TimerProvider = ({ children }) => {
       fetchCurrentActivity,
       getUserInfo,
       getAuthHeaders,
-      timeOutCompleted,
+      getTimeOutCompleted,
       setTimeOutCompleted,
     }),
     [
@@ -234,7 +264,8 @@ export const TimerProvider = ({ children }) => {
       fetchCurrentActivity, 
       getUserInfo, 
       getAuthHeaders,
-      timeOutCompleted
+      getTimeOutCompleted,
+      setTimeOutCompleted
     ]
   );
 
