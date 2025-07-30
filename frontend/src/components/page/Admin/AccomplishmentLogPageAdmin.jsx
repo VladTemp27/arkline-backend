@@ -252,8 +252,8 @@ export default function AccomplishmentDashboard() {
   const [isLoading, setIsLoading] = useState(false)
 
   // API Configuration
-  const API_BASE_URL = 'http://localhost:2010'
-  const JWT_TOKEN = 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImxlcyIsInVzZXJJZCI6IjIzIiwicm9sZSI6ImFkbWluIn0.ZZn5G0T3-xPn7KL_pVcYCrnnXzlb64ft3WY6gSS9YgU'
+  const API_BASE_URL = 'https://api.arkline.com'
+  const JWT_TOKEN = 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImxlcyIsInVzZXJJZCI6IjIzIiwicm9sZSI6ImFkbWluIiwiZmlyc3ROYW1lIjoiTGVzdGF0IiwibGFzdE5hbWUiOiJBZ3VzdGluIn0.8ixg4h7eXQ9cqmqkowFHLQsbwPY0dGjjQdTrC54MSdQ'
   
   const apiHeaders = {
     'Authorization': JWT_TOKEN,
@@ -356,9 +356,11 @@ export default function AccomplishmentDashboard() {
       
       // Try to fetch from API first
       try {
-        const response = await axios.get(`${API_BASE_URL}/time-log/timelogs`, {
+        const response = await axios.get(`${API_BASE_URL}/api/accomplishment-tracking/time-log/timelogs`, {
           headers: apiHeaders
         })
+
+        console.log('API response:', response.data)
         
         // Handle the correct API response structure
         timeLogs = response.data.allTimeLogs || []
@@ -447,7 +449,7 @@ export default function AccomplishmentDashboard() {
       // Try to fetch from API first
       try {
         // Fetch time logs for the user
-        const timeLogsResponse = await axios.get(`${API_BASE_URL}/time-log/timelogs/${userId}`, {
+        const timeLogsResponse = await axios.get(`${API_BASE_URL}/api/accomplishment-tracking/time-service/timelogs/${userId}?userId=${userId}`, {
           headers: apiHeaders
         })
         
@@ -461,7 +463,7 @@ export default function AccomplishmentDashboard() {
             try {
               // Fetch accomplishments for this specific date
               const accomplishmentResponse = await axios.get(
-                `${API_BASE_URL}/accomplishment-logs/form?userId=${userId}&date=${log.date}`,
+                `${API_BASE_URL}/api/accomplishment-tracking/accomplishment-service/form?userId=${userId}&date=${log.date}`,
                 { headers: apiHeaders }
               )
               
@@ -608,7 +610,7 @@ export default function AccomplishmentDashboard() {
   // Load today's logs on component mount
   useEffect(() => {
     fetchTodaysLogs()
-  }, [])
+  },[])
 
   const toggleLogExpansion = (logId) => {
     const newExpanded = new Set(expandedLogs)
