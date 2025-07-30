@@ -1,3 +1,4 @@
+import axios from "axios";
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,67 +9,119 @@ import AccomplishmentModal from "./AccomplishmentModal";
 import { useTimer } from "@/context/AccomplishmentLogContext";
 
 const TimeComponent = () => {
+  const API_BASE = "/api/accomplishment-tracking/time-service";
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [isTimeOutModalOpen, setIsTimeOutModalOpen] = useState(false);
+
+
   const {
     currentTime,
     isTimedIn,
     setIsTimedIn,
     isOnBreak,
     setIsOnBreak,
-    hoursWorked,
-    setHoursWorked,
-    logs,
-    setLogs,
+    formatTime,
+    activityData,
+    generateLogsFromTimeLogs,
+    calculateHoursWorked,
+    fetchCurrentActivity,
+    getAuthHeaders,
   } = useTimer();
 
-  const [isTimeOutModalOpen, setIsTimeOutModalOpen] = useState(false);
-
-  const addLog = (message) => {
-    const newLog = {
-      id: Date.now().toString(),
-      message,
-      timestamp: currentTime.toLocaleTimeString("en-US", {
-        hour12: true,
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    };
-    setLogs((prev) => [newLog, ...prev]);
-  };
-
-  const handleTimeInOut = () => {
+  const handleTimeInOut = async () => {
     if (isTimedIn) {
-      setIsTimeOutModalOpen(true);
+      setIsLoading(true);
+      setError(null);
+      try {
+        console.log("Recording timeout in database...");
+        const response = await axios.post(`${API_BASE}/time-out`, {}, {
+          headers: getAuthHeaders(),
+        });
+        console.log("Timeout recorded successfully:", response.data);
+        
+        setIsTimeOutModalOpen(true);
+      } catch (error) {
+        console.error("Error timing out:", error);
+        setError(error.response?.data?.error || "Failed to time out");
+      } finally {
+        setIsLoading(false);
+      }
     } else {
-      setIsTimedIn(true);
-      addLog("**User** has timed in");
+      setIsLoading(true);
+      setError(null);
+      try {
+        await axios.post(`${API_BASE}/time-in`, {}, {
+          headers: getAuthHeaders(),
+        });
+
+        setIsTimedIn(true);
+        await fetchCurrentActivity();
+      } catch (error) {
+        console.error("Error timing in:", error);
+        
+        if (error.response?.status === 400 && error.response?.data?.error?.includes('already recorded')) {
+          setError('You have already timed in today');
+          await fetchCurrentActivity();
+        } else {
+          setError(error.response?.data?.error || "Failed to time in");
+        }
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
-  const handleAccomplishmentSubmit = () => {
-    setIsTimedIn(false);
-    setIsOnBreak(false);
-    addLog("**User** has timed out and submitted daily accomplishments");
-    setHoursWorked(0);
-    setIsTimeOutModalOpen(false);
-  };
+  const handleAccomplishmentSubmit = async (accomplishmentData) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      if (accomplishmentData) {
+        console.log("Submitting accomplishment form...");
+        const token = localStorage.getItem("token");
+        await axios.post(
+          "/api/accomplishment-tracking/accomplishment-service/submit",
+          accomplishmentData,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        console.log("Accomplishment form submitted successfully");
+      }
 
-  const handleBreak = () => {
-    if (isOnBreak) {
+      setIsTimedIn(false);
       setIsOnBreak(false);
-      addLog("**User**  has ended break");
-    } else {
-      setIsOnBreak(true);
-      addLog("**User** has started break");
+      setIsTimeOutModalOpen(false);
+      await fetchCurrentActivity();
+    } catch (error) {
+      console.error("Error submitting accomplishment:", error);
+      setError(error.response?.data?.error || "Failed to submit accomplishment");
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const formatTime = (seconds) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    return `${hours.toString().padStart(2, "0")}:${minutes
-      .toString()
-      .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  const handleBreak = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const endpoint = isOnBreak ? "end-lunch-break" : "lunch-break";
+
+      await axios.post(`${API_BASE}/${endpoint}`, {}, {
+        headers: getAuthHeaders(),
+      });
+
+      if (isOnBreak) {
+        setIsOnBreak(false);
+      } else {
+        setIsOnBreak(true);
+      }
+      
+      await fetchCurrentActivity();
+    } catch (error) {
+      console.error("Error updating break status:", error);
+      setError(error.response?.data?.error || "Failed to update break status");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const formatCurrentTime = (date) => {
@@ -82,6 +135,25 @@ const TimeComponent = () => {
 
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-6">
+      {/* Error Display */}
+      {error && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="pt-6">
+            <div className="text-center text-red-600">
+              <p className="text-sm">{error}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                onClick={() => setError(null)}
+              >
+                Dismiss
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Time Display Section */}
       <Card>
         <CardContent className="pt-6">
@@ -101,7 +173,7 @@ const TimeComponent = () => {
                 Hours Worked Today
               </div>
               <div className="text-4xl font-mono font-bold text-primary">
-                {formatTime(hoursWorked)}
+                {formatTime(activityData?.timeLogs ? calculateHoursWorked(activityData.timeLogs) : 0)}
               </div>
               <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                 {isTimedIn && (
@@ -130,9 +202,10 @@ const TimeComponent = () => {
                 size="lg"
                 variant="destructive"
                 className="h-16 text-lg font-semibold"
+                disabled={isLoading}
               >
                 <StopCircle className="mr-2 h-5 w-5" />
-                Time Out
+                {isLoading ? "Processing..." : "Time Out"}
               </Button>
             ) : (
               <Button
@@ -140,9 +213,10 @@ const TimeComponent = () => {
                 size="lg"
                 variant="default"
                 className="h-16 text-lg font-semibold bg-green-500 hover:bg-green-700"
+                disabled={isLoading}
               >
                 <Play className="mr-2 h-5 w-5" />
-                Time In
+                {isLoading ? "Processing..." : "Time In"}
               </Button>
             )}
 
@@ -150,56 +224,66 @@ const TimeComponent = () => {
               onClick={handleBreak}
               size="lg"
               variant={isOnBreak ? "secondary" : "outline"}
-              disabled={!isTimedIn}
+              disabled={!isTimedIn || isLoading}
               className="h-16 text-lg font-semibold"
             >
-              {isOnBreak ? (
-                <>
-                  <Pause className="mr-2 h-5 w-5" />
-                  End Lunch Break
-                </>
-              ) : (
-                <>
-                  <Coffee className="mr-2 h-5 w-5" />
-                  Start Lunch Break
-                </>
-              )}
+              {(() => {
+                if (isLoading) return "Processing...";
+                if (isOnBreak) {
+                  return (
+                    <>
+                      <Pause className="mr-2 h-5 w-5" />
+                      End Lunch Break
+                    </>
+                  );
+                }
+                return (
+                  <>
+                    <Coffee className="mr-2 h-5 w-5" />
+                    Start Lunch Break
+                  </>
+                );
+              })()}
             </Button>
           </div>
-          {isTimedIn && (
-            <AccomplishmentModal
-              isOpen={isTimeOutModalOpen}
-              onClose={() => setIsTimeOutModalOpen(false)}
-              onSubmit={handleAccomplishmentSubmit}
-            />
-          )}
+          
+          <AccomplishmentModal
+            isOpen={isTimeOutModalOpen}
+            onClose={() => setIsTimeOutModalOpen(false)}
+            onSubmit={handleAccomplishmentSubmit}
+            mode="edit"
+          />
         </CardContent>
       </Card>
 
       {/* Activity Logs */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg">Activity Logs</CardTitle>
         </CardHeader>
         <CardContent>
           <ScrollArea className="h-64 w-full">
-            {logs.length === 0 ? (
+            {!activityData?.timeLogs ? (
               <div className="text-center text-muted-foreground py-8">
                 No activity logged yet
               </div>
             ) : (
               <div className="space-y-3">
-                {logs.map((log) => (
-                  <div
-                    key={log.id}
-                    className="flex justify-between items-start p-3 bg-muted/50 rounded-lg"
-                  >
-                    <span className="text-sm">{log.message}</span>
-                    <span className="text-xs text-muted-foreground font-mono ml-4 flex-shrink-0">
-                      {log.timestamp}
-                    </span>
-                  </div>
-                ))}
+                {(() => {
+                  const logs = generateLogsFromTimeLogs(activityData.timeLogs);
+                  console.log("Generated logs:", logs);
+                  return logs.map((log) => (
+                    <div
+                      key={log.id}
+                      className="flex justify-between items-start p-3 bg-muted/50 rounded-lg"
+                    >
+                      <span className="text-sm">{log.message}</span>
+                      <span className="text-xs text-muted-foreground font-mono ml-4 flex-shrink-0">
+                        {log.timestamp}
+                      </span>
+                    </div>
+                  ));
+                })()}
               </div>
             )}
           </ScrollArea>

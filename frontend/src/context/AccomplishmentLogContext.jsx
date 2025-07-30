@@ -2,29 +2,165 @@ import React, {
   createContext,
   useContext,
   useState,
-  useRef,
+  useCallback,
   useEffect,
 } from "react";
 import PropTypes from "prop-types";
+import axios from "axios";
+import { jwtDecode } from "jwt-decode";
 
 const AccomplishmentLogContext = createContext();
 
 export const TimerProvider = ({ children }) => {
-  // Initialize state from sessionStorage if available
+  // Simplified state - no local storage for logs or hours
   const [currentTime, setCurrentTime] = useState(() => new Date());
-  const [isTimedIn, setIsTimedIn] = useState(() =>
-    JSON.parse(sessionStorage.getItem("isTimedIn") || "false")
-  );
-  const [isOnBreak, setIsOnBreak] = useState(() =>
-    JSON.parse(sessionStorage.getItem("isOnBreak") || "false")
-  );
-  const [hoursWorked, setHoursWorked] = useState(() =>
-    Number(sessionStorage.getItem("hoursWorked") || 0)
-  );
-  const [logs, setLogs] = useState(() =>
-    JSON.parse(sessionStorage.getItem("logs") || "[]")
-  );
-  const intervalRef = useRef(null);
+  const [isTimedIn, setIsTimedIn] = useState(false);
+  const [isOnBreak, setIsOnBreak] = useState(false);
+  const [user, setUser] = useState(null);
+  const [activityData, setActivityData] = useState(null); // Store the full activity response
+
+  // API configuration
+  const API_BASE = "/api/accomplishment-tracking/time-service";
+  
+  const getAuthHeaders = useCallback(() => {
+    const token = localStorage.getItem("token");
+    return {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    };
+  }, []);
+
+  // Get user info from JWT token
+  const getUserInfo = useCallback(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      try {
+        const decoded = jwtDecode(token);
+        return {
+          userId: decoded.userId,
+          username: decoded.username || `${decoded.firstName} ${decoded.lastName}`,
+          firstName: decoded.firstName,
+          lastName: decoded.lastName,
+        };
+      } catch (error) {
+        console.error("Error decoding token:", error);
+        return null;
+      }
+    }
+    return null;
+  }, []);
+
+  // Call activity API and generate logs from the response
+  const callActivityAPI = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/activity`, {
+        headers: getAuthHeaders(),
+      });
+      
+      console.log("Activity API response:", response.data);
+      setActivityData(response.data);
+      
+      return response.data;
+    } catch (error) {
+      console.error("Error calling activity API:", error);
+      return null;
+    }
+  }, [getAuthHeaders]);
+
+  // Generate activity logs from API response
+  const generateLogsFromTimeLogs = useCallback((timeLogsData) => {
+    if (!timeLogsData) return [];
+
+    const logs = [];
+    const username = user?.username || "User";
+    
+    if (timeLogsData.timeIn) {
+      logs.push({
+        id: `timeIn-${timeLogsData.timeIn}`,
+        message: `${username} has timed in`,
+        timestamp: timeLogsData.timeIn,
+        type: 'timeIn'
+      });
+    }
+
+    if (timeLogsData.lunchBreakStart) {
+      logs.push({
+        id: `lunchStart-${timeLogsData.lunchBreakStart}`,
+        message: `${username} has started break`,
+        timestamp: timeLogsData.lunchBreakStart,
+        type: 'lunchBreakStart'
+      });
+    }
+
+    if (timeLogsData.lunchBreakEnd) {
+      logs.push({
+        id: `lunchEnd-${timeLogsData.lunchBreakEnd}`,
+        message: `${username} has ended break`,
+        timestamp: timeLogsData.lunchBreakEnd,
+        type: 'lunchBreakEnd'
+      });
+    }
+
+    if (timeLogsData.timeOut) {
+      logs.push({
+        id: `timeOut-${timeLogsData.timeOut}`,
+        message: `${username} has timed out`,
+        timestamp: timeLogsData.timeOut,
+        type: 'timeOut'
+      });
+    }
+
+    // Sort logs by timestamp (most recent first)
+    return logs.sort((a, b) => new Date(`1970-01-01T${b.timestamp}`) - new Date(`1970-01-01T${a.timestamp}`));
+  }, [user]);
+
+  // Calculate hours worked from time logs
+  const calculateHoursWorked = useCallback((timeLogsData) => {
+    if (!timeLogsData?.timeIn) return 0;
+
+    const today = new Date().toLocaleDateString("en-CA", {
+      timeZone: "Asia/Manila",
+    });
+
+    const timeInDateTime = new Date(`${today}T${timeLogsData.timeIn}`);
+    const now = timeLogsData.timeOut 
+      ? new Date(`${today}T${timeLogsData.timeOut}`)
+      : new Date();
+
+    let diffInSeconds = Math.floor((now - timeInDateTime) / 1000);
+
+    // Subtract lunch break time if applicable
+    if (timeLogsData.lunchBreakStart && timeLogsData.lunchBreakEnd) {
+      const lunchStart = new Date(`${today}T${timeLogsData.lunchBreakStart}`);
+      const lunchEnd = new Date(`${today}T${timeLogsData.lunchBreakEnd}`);
+      const lunchDuration = Math.floor((lunchEnd - lunchStart) / 1000);
+      diffInSeconds -= lunchDuration;
+    } else if (timeLogsData.lunchBreakStart && !timeLogsData.lunchBreakEnd && isOnBreak) {
+      // Currently on break - subtract break time so far
+      const lunchStart = new Date(`${today}T${timeLogsData.lunchBreakStart}`);
+      const breakDuration = Math.floor((now - lunchStart) / 1000);
+      diffInSeconds -= breakDuration;
+    }
+
+    return Math.max(0, diffInSeconds);
+  }, [isOnBreak]);
+
+  // Utility function to format time in seconds to HH:MM:SS
+  const formatTime = useCallback((seconds) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${hours.toString().padStart(2, "0")}:${minutes
+      .toString()
+      .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  }, []);
+
+  // Function to reset states to defaults
+  const resetToDefaults = useCallback(() => {
+    setIsTimedIn(false);
+    setIsOnBreak(false);
+    setActivityData(null);
+  }, []);
 
   // Update current time every second
   useEffect(() => {
@@ -32,40 +168,35 @@ export const TimerProvider = ({ children }) => {
     return () => clearInterval(timer);
   }, []);
 
-  // Persist state to sessionStorage on change
-  useEffect(() => {
-    sessionStorage.setItem("isTimedIn", JSON.stringify(isTimedIn));
-  }, [isTimedIn]);
-
-  useEffect(() => {
-    sessionStorage.setItem("isOnBreak", JSON.stringify(isOnBreak));
-  }, [isOnBreak]);
-
-  useEffect(() => {
-    sessionStorage.setItem("hoursWorked", hoursWorked);
-  }, [hoursWorked]);
-
-  useEffect(() => {
-    sessionStorage.setItem("logs", JSON.stringify(logs));
-  }, [logs]);
-
-  // Handle hours worked timer
-  useEffect(() => {
-    if (isTimedIn && !isOnBreak) {
-      intervalRef.current = setInterval(
-        () => setHoursWorked((prev) => prev + 1),
-        1000
-      );
-    } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+  // Fetch current activity from backend
+  const fetchCurrentActivity = useCallback(async () => {
+    try {
+      const data = await callActivityAPI();
+      if (data?.timeLogs) {
+        setIsTimedIn(!!data.timeLogs.timeIn && !data.timeLogs.timeOut);
+        setIsOnBreak(!!data.timeLogs.lunchBreakStart && !data.timeLogs.lunchBreakEnd);
       }
+    } catch (error) {
+      console.error("Error fetching current activity:", error);
     }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [isTimedIn, isOnBreak]);
+  }, [callActivityAPI]);
+
+  // Initialize user and fetch activity on mount
+  useEffect(() => {
+    const userInfo = getUserInfo();
+    setUser(userInfo);
+
+    if (userInfo) {
+      fetchCurrentActivity();
+      
+      // Set up periodic sync every 30 seconds
+      const interval = setInterval(() => {
+        fetchCurrentActivity();
+      }, 30000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [getUserInfo, fetchCurrentActivity]);
 
   const contextValue = React.useMemo(
     () => ({
@@ -75,12 +206,33 @@ export const TimerProvider = ({ children }) => {
       setIsTimedIn,
       isOnBreak,
       setIsOnBreak,
-      hoursWorked,
-      setHoursWorked,
-      logs,
-      setLogs,
+      user,
+      setUser,
+      formatTime,
+      resetToDefaults,
+      activityData,
+      callActivityAPI,
+      generateLogsFromTimeLogs,
+      calculateHoursWorked,
+      fetchCurrentActivity,
+      getUserInfo,
+      getAuthHeaders,
     }),
-    [currentTime, isTimedIn, isOnBreak, hoursWorked, logs]
+    [
+      currentTime, 
+      isTimedIn, 
+      isOnBreak, 
+      user, 
+      formatTime, 
+      resetToDefaults, 
+      activityData, 
+      callActivityAPI, 
+      generateLogsFromTimeLogs, 
+      calculateHoursWorked, 
+      fetchCurrentActivity, 
+      getUserInfo, 
+      getAuthHeaders
+    ]
   );
 
   return (
