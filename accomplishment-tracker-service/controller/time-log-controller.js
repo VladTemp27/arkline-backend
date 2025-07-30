@@ -160,6 +160,8 @@ async function handleGetTimeLogsByUserId(req, res) {
 async function handleGetAllTimeLogs(req, res) {
     try {
         const allTimeLogs = await getAllTimeLogs();
+        console.log(`Returning: ${allTimeLogs.length} time logs`);
+        console.log(JSON.stringify(allTimeLogs));
         return res.status(200).send({ message: 'All time logs retrieved successfully', allTimeLogs });
     } catch (error) {
         console.error('Error retrieving all time logs:', error);
