@@ -2,7 +2,7 @@ import React from "react";
 import Sidebar from "../../layout/Sidebar/Sidebar";
 import { Outlet } from "react-router";
 
-const AccomplishmentLog = () => {
+const AccomplishmentLogLayout = () => {
   return (
     <div className="flex flex-col min-h-screen">
       <nav className="nav fixed top-0 w-full z-50 bg-white">
@@ -18,4 +18,4 @@ const AccomplishmentLog = () => {
   );
 };
 
-export default AccomplishmentLog;
+export default AccomplishmentLogLayout;
