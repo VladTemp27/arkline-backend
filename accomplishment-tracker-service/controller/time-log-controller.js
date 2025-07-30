@@ -143,7 +143,7 @@ function getCurrentDateTime() {
 
 async function handleGetTimeLogsByUserId(req, res) {
     const userId = req.params.userId;
-    const date = req.query.date || getCurrentDateTime().date;
+    const date = req.query.date || null;
 
     try {
         const timeLogs = await getTimeLogsByUserId(userId, date);
