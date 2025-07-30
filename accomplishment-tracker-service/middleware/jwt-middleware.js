@@ -37,7 +37,7 @@ function requireRoleOrOwnership(...roles){
         const currentUserId = req.user.userId;
         const role = req.user.role;
         const { userId } = req.query;
-
+        console.log(`Current User ID: ${currentUserId}, Role: ${role}, Requested User ID: ${userId}`);
         if(currentUserId !== userId || !roles.includes(role) ){
             return res.status(403).send({message:'Forbidden'});
         }
