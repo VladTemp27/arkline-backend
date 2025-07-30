@@ -133,8 +133,19 @@ export default function AccomplishmentDashboard() {
       const timeLogs = response.data.allTimeLogs || []
       console.log('Successfully fetched time logs from API:', timeLogs.length, 'records')
       
+      // Get today's date in YYYY-MM-DD format for filtering
+      const today = new Date().toISOString().split('T')[0]
+      
+      // Filter logs to include only today's date
+      const todayLogs = timeLogs.filter(log => {
+        const logDate = new Date(log.date).toISOString().split('T')[0]
+        return logDate === today
+      })
+      
+      console.log('Filtered today\'s logs:', todayLogs.length, 'records for date:', today)
+      
       // Transform data to match component structure
-      const transformedData = timeLogs.map(log => ({
+      const transformedData = todayLogs.map(log => ({
         id: log.userId,
         name: `${log.firstName || ''} ${log.lastName || ''}`.trim() || `User ${log.userId}`,
         latestDate: new Date(log.date).toLocaleDateString('en-US', { 
@@ -157,7 +168,7 @@ export default function AccomplishmentDashboard() {
           log.timeLogs?.lunchBreakEnd
         ),
         rawData: log, // Keep original data for reference
-        previousLogs: [] // Will be populated when user clicks on logs
+        logs: [] // Will be populated when user clicks on logs
       }))
       
       setTodaysLogs(transformedData)
@@ -169,67 +180,132 @@ export default function AccomplishmentDashboard() {
     }
   }
 
-  // Fetch user's previous logs
+  // Fetch user's logs
   const fetchUserPreviousLogs = async (userId) => {
+    console.log('=== fetchUserLogs START ===')
+    console.log('UserID:', userId)
+    console.log('API_BASE_URL:', API_BASE_URL)
+    console.log('JWT_TOKEN:', JWT_TOKEN ? 'Present' : 'Missing')
+    
     setIsLoading(true)
     try {
-      // Fetch time logs for the user using the corrected endpoint
-      const timeLogsResponse = await axios.get(`${API_BASE_URL}/api/accomplishment-tracking/time-service/timelogs/${userId}?userId=${userId}`, {
-        headers: apiHeaders
-      })
-      
-      console.log('Previous logs API response:', timeLogsResponse.data)
-      
-      // Handle the new API response structure
-      const responseData = timeLogsResponse.data.timeLogs
       let logsWithAccomplishments = []
       
-      if (responseData && responseData.timeLogs) {
-        // Since we're getting a single log entry, we'll create an array with one item
-        // For the date, we'll use today's date or extract from accomplishment log if available
-        const logDate = responseData.accomplishmentLog?.dateAssigned || new Date().toISOString().split('T')[0]
+      // Try to fetch from API first
+      try {
+        const requestUrl = `${API_BASE_URL}/api/accomplishment-tracking/time-service/timelogs/${userId}?userId=${userId}`
+        console.log('Making API request to:', requestUrl)
+        console.log('Request headers:', apiHeaders)
         
-        logsWithAccomplishments = [{
-          date: new Date(logDate).toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-          }),
-          timeIn: responseData.timeLogs?.timeIn || 'N/A',
-          timeOut: responseData.timeLogs?.timeOut || 'N/A',
-          totalHours: formatTotalHours(
-            responseData.timeLogs?.timeIn, 
-            responseData.timeLogs?.timeOut, 
-            responseData.timeLogs?.lunchBreakStart, 
-            responseData.timeLogs?.lunchBreakEnd
-          ),
-          status: calculateWorkStatus(
-            responseData.timeLogs?.timeIn, 
-            responseData.timeLogs?.timeOut, 
-            responseData.timeLogs?.lunchBreakStart, 
-            responseData.timeLogs?.lunchBreakEnd
-          ),
-          details: {
-            groupName: responseData.accomplishmentLog?.groupName || "Development Team",
-            typeOfActivity: responseData.accomplishmentLog?.activityType || "Development",
-            module: responseData.accomplishmentLog?.module || "General",
-            dateAssigned: responseData.accomplishmentLog?.dateAssigned || logDate,
-            targetEndDate: responseData.accomplishmentLog?.targetEndDate || logDate,
-            actualEndDate: responseData.accomplishmentLog?.actualEndDate || logDate,
-            currentStatus: responseData.accomplishmentLog?.status || "Completed",
-            percentageOfActivity: responseData.accomplishmentLog?.percentageOfActivity || 100,
-            projectLeads: responseData.accomplishmentLog?.projectHeads || ["No assigned leads"],
-            activity: responseData.accomplishmentLog?.activities?.join(', ') || "No activities recorded"
-          }
-        }]
+        // Fetch time logs for the user using the corrected endpoint
+        const timeLogsResponse = await axios.get(requestUrl, {
+          headers: apiHeaders
+        })
+        
+        console.log('API Response Status:', timeLogsResponse.status)
+        console.log('API Response Headers:', timeLogsResponse.headers)
+        console.log('Logs API response:', timeLogsResponse.data)
+        console.log('Response data type:', typeof timeLogsResponse.data)
+        console.log('Response data keys:', Object.keys(timeLogsResponse.data || {}))
+        
+        // Handle the new API response structure with dates as keys
+        const responseData = timeLogsResponse.data.timeLogs
+        console.log('ResponseData (timeLogs):', responseData)
+        console.log('ResponseData type:', typeof responseData)
+        
+        if (responseData && responseData.dates) {
+          console.log('Processing dates:', Object.keys(responseData.dates))
+          console.log('Dates object:', responseData.dates)
+          
+          // Get today's date in YYYY-MM-DD format for comparison
+          const today = new Date().toISOString().split('T')[0]
+          console.log('Today\'s date for filtering:', today)
+          
+          // Process each date entry in the dates object, but exclude today's date
+          const dateEntries = Object.entries(responseData.dates)
+          console.log('Date entries before filtering:', dateEntries)
+          
+          const filteredEntries = dateEntries.filter(([dateKey, dateData]) => {
+              const isToday = dateKey === today
+              console.log(`Date ${dateKey}: isToday=${isToday}`)
+              // return !isToday // Exclude today's date
+              return true // Temporarily include all dates for testing
+            })
+          console.log('Date entries after filtering:', filteredEntries)
+          
+          logsWithAccomplishments = filteredEntries.map(([dateKey, dateData]) => {
+              console.log(`Processing date ${dateKey}:`, dateData)
+              
+              const processedLog = {
+                date: new Date(dateKey).toLocaleDateString('en-US', { 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric' 
+                }),
+                timeIn: dateData.timeLogs?.timeIn || 'N/A',
+                timeOut: dateData.timeLogs?.timeOut || 'N/A',
+                totalHours: formatTotalHours(
+                  dateData.timeLogs?.timeIn, 
+                  dateData.timeLogs?.timeOut, 
+                  dateData.timeLogs?.lunchBreakStart, 
+                  dateData.timeLogs?.lunchBreakEnd
+                ),
+                status: calculateWorkStatus(
+                  dateData.timeLogs?.timeIn, 
+                  dateData.timeLogs?.timeOut, 
+                  dateData.timeLogs?.lunchBreakStart, 
+                  dateData.timeLogs?.lunchBreakEnd
+                ),
+                details: {
+                  groupName: dateData.accomplishmentLog?.groupName || "Development Team",
+                  typeOfActivity: dateData.accomplishmentLog?.activityType || "Development",
+                  module: dateData.accomplishmentLog?.module || "General",
+                  dateAssigned: dateData.accomplishmentLog?.dateAssigned || dateKey,
+                  targetEndDate: dateData.accomplishmentLog?.targetEndDate || dateKey,
+                  actualEndDate: dateData.accomplishmentLog?.actualEndDate || null,
+                  currentStatus: dateData.accomplishmentLog?.status || "Completed",
+                  percentageOfActivity: dateData.accomplishmentLog?.percentageOfActivity || 100,
+                  projectLeads: dateData.accomplishmentLog?.projectHeads || ["No assigned leads"],
+                  activity: dateData.accomplishmentLog?.activities?.join(', ') || "No activities recorded"
+                }
+              }
+              
+              console.log(`Processed log for ${dateKey}:`, processedLog)
+              return processedLog
+            }).sort((a, b) => new Date(b.date) - new Date(a.date)) // Sort by date descending (newest first)
+          
+          console.log('Final processed logs:', logsWithAccomplishments.length, 'entries')
+          console.log('All processed logs:', logsWithAccomplishments)
+        } else {
+          console.warn('No dates found in API response')
+          console.log('ResponseData structure:', responseData)
+          logsWithAccomplishments = []
+        }
+      } catch (apiError) {
+        console.error('API request failed:', apiError.message)
+        console.error('Full error:', apiError)
+        console.error('Error response:', apiError.response?.data)
+        console.error('Error status:', apiError.response?.status)
+        logsWithAccomplishments = []
       }
       
+      // If no data from API, show empty state
+      if (!logsWithAccomplishments || logsWithAccomplishments.length === 0) {
+        console.warn('No logs available for user:', userId)
+        console.log('Setting empty array for selectedUserLogs')
+        logsWithAccomplishments = []
+      }
+      
+      console.log('About to set selectedUserLogs with:', logsWithAccomplishments)
       setSelectedUserLogs(logsWithAccomplishments)
+      console.log('selectedUserLogs has been set')
     } catch (error) {
       console.error('Error fetching user logs:', error)
+      console.error('Error stack:', error.stack)
       setSelectedUserLogs([])
     } finally {
       setIsLoading(false)
+      console.log('=== fetchUserLogs END ===')
     }
   }
 
@@ -411,17 +487,17 @@ export default function AccomplishmentDashboard() {
                     <DialogHeader className="pb-4">
                       <DialogTitle className="flex items-center gap-2">
                         <FileText className="h-5 w-5" />
-                        {user.name}'s Previous Logs
+                        {user.name}'s Logs
                       </DialogTitle>
                     </DialogHeader>
                     <ScrollArea className="max-h-[calc(90vh-120px)] overflow-y-auto pr-4">
                       {isLoading ? (
                         <div className="flex items-center justify-center py-8">
-                          <div className="text-gray-500">Loading previous logs...</div>
+                          <div className="text-gray-500">Loading logs...</div>
                         </div>
-                      ) : (
+                      ) : (selectedUserLogs && selectedUserLogs.length > 0) ? (
                         <div className="space-y-4">
-                          {(selectedUserLogs || []).map((log, index) => {
+                          {selectedUserLogs.map((log, index) => {
                             const logId = `${user.id}-${index}`
                             const isExpanded = expandedLogs.has(logId)
 
@@ -597,10 +673,16 @@ export default function AccomplishmentDashboard() {
                                   </div>
                                 </CollapsibleContent>
                               </Collapsible>
-                              {index < (selectedUserLogs || []).length - 1 && <Separator className="my-2" />}
+                              {index < selectedUserLogs.length - 1 && <Separator className="my-2" />}
                             </div>
                           )
                         })}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-12">
+                          <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                          <h3 className="text-lg font-medium text-gray-900 mb-2">No logs found</h3>
+                          <p className="text-gray-600 text-center">This user has no logs available.</p>
                         </div>
                       )}
                     </ScrollArea>
