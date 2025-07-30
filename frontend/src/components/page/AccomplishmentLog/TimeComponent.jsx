@@ -148,7 +148,25 @@ const TimeComponent = () => {
 
   const handleTimeInOut = async () => {
     if (isTimedIn) {
-      setIsTimeOutModalOpen(true);
+      // When timing out, first record the timeout, then open the modal
+      setIsLoading(true);
+      setError(null);
+      try {
+        console.log("Recording timeout in database...");
+        const response = await axios.post(`${API_BASE}/time-out`, {}, {
+          headers: getAuthHeaders(),
+        });
+        console.log("Timeout recorded successfully:", response.data);
+        
+        // After successful timeout, open the accomplishment modal
+        setIsTimeOutModalOpen(true);
+        addLog("**User** has timed out - filling accomplishment form");
+      } catch (error) {
+        console.error("Error timing out:", error);
+        setError(error.response?.data?.error || "Failed to time out");
+      } finally {
+        setIsLoading(false);
+      }
     } else {
       setIsLoading(true);
       setError(null);
@@ -179,26 +197,35 @@ const TimeComponent = () => {
     }
   };
 
-  const handleAccomplishmentSubmit = async () => {
+  const handleAccomplishmentSubmit = async (accomplishmentData) => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await axios.post(
-        `${API_BASE}/time-out`,
-        {},
-        {
-          headers: getAuthHeaders(),
-        }
-      );
+      // Timeout was already recorded when Time Out button was clicked
+      // Now just submit the accomplishment form
+      if (accomplishmentData) {
+        console.log("Submitting accomplishment form...");
+        const token = localStorage.getItem("token");
+        await axios.post(
+          "/api/accomplishment-tracking/accomplishment-service/submit",
+          accomplishmentData,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        console.log("Accomplishment form submitted successfully");
+      }
 
+      // Update UI state
       setIsTimedIn(false);
       setIsOnBreak(false);
-      addLog("**User** has timed out and submitted daily accomplishments");
+      addLog("**User** has submitted daily accomplishments");
       setHoursWorked(0);
       setIsTimeOutModalOpen(false);
+      
+      // Refresh state from backend
+      await fetchCurrentActivity();
     } catch (error) {
-      console.error("Error timing out:", error);
-      setError(error.response?.data?.error || "Failed to time out");
+      console.error("Error submitting accomplishment:", error);
+      setError(error.response?.data?.error || "Failed to submit accomplishment");
     } finally {
       setIsLoading(false);
     }
@@ -358,13 +385,12 @@ const TimeComponent = () => {
               )}
             </Button>
           </div>
-          {isTimedIn && (
-            <AccomplishmentModal
-              isOpen={isTimeOutModalOpen}
-              onClose={() => setIsTimeOutModalOpen(false)}
-              onSubmit={handleAccomplishmentSubmit}
-            />
-          )}
+          {/* Modal should show when isTimeOutModalOpen is true, regardless of isTimedIn state */}
+          <AccomplishmentModal
+            isOpen={isTimeOutModalOpen}
+            onClose={() => setIsTimeOutModalOpen(false)}
+            onSubmit={handleAccomplishmentSubmit}
+          />
         </CardContent>
       </Card>
 
