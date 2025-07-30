@@ -1,7 +1,4 @@
 import axios from "axios";
-import { jwtDecode } from "jwt-decode";
-import { useEffect } from "react";
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,54 +10,10 @@ import { useTimer } from "@/context/AccomplishmentLogContext";
 
 const TimeComponent = () => {
   const API_BASE = "/api/accomplishment-tracking/time-service";
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem("token");
-    return {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    };
-  };
-
-  const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [isTimeOutModalOpen, setIsTimeOutModalOpen] = useState(false);
 
-  // Get user info from JWT token
-  const getUserInfo = () => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      try {
-        const decoded = jwtDecode(token);
-        return {
-          userId: decoded.userId,
-          username:
-            decoded.username || `${decoded.firstName} ${decoded.lastName}`,
-          firstName: decoded.firstName,
-          lastName: decoded.lastName,
-        };
-      } catch (error) {
-        console.error("Error decoding token:", error);
-        return null;
-      }
-    }
-    return null;
-  };
-
-  useEffect(() => {
-    const userInfo = getUserInfo();
-    setUser(userInfo);
-
-    if (userInfo) {
-      fetchCurrentActivity();
-      
-      // Set up periodic sync every 30 seconds
-      const interval = setInterval(() => {
-        fetchCurrentActivity();
-      }, 30000);
-      
-      return () => clearInterval(interval);
-    }
-  }, []);
 
   const {
     currentTime,
@@ -68,87 +21,16 @@ const TimeComponent = () => {
     setIsTimedIn,
     isOnBreak,
     setIsOnBreak,
-    hoursWorked,
-    setHoursWorked,
-    logs,
-    setLogs,
+    formatTime,
+    activityData,
+    generateLogsFromTimeLogs,
+    calculateHoursWorked,
+    fetchCurrentActivity,
+    getAuthHeaders,
   } = useTimer();
-
-  const [isTimeOutModalOpen, setIsTimeOutModalOpen] = useState(false);
-
-  // Add this function to fetch current activity from backend
-  const fetchCurrentActivity = async () => {
-    setIsLoading(true);
-    try {
-      const response = await axios.get(`${API_BASE}/activity`, {
-        headers: getAuthHeaders(),
-      });
-
-      const { timeLogs } = response.data;
-      if (timeLogs) {
-        setIsTimedIn(!!timeLogs.timeIn && !timeLogs.timeOut);
-        setIsOnBreak(!!timeLogs.lunchBreakStart && !timeLogs.lunchBreakEnd);
-
-        // Fixed time calculation
-        if (timeLogs.timeIn && !timeLogs.timeOut) {
-          // Get today's date in YYYY-MM-DD format (matching backend)
-          const today = new Date().toLocaleDateString("en-CA", {
-            timeZone: "Asia/Manila",
-          });
-
-          // Create proper datetime by combining date and time
-          const timeInDateTime = new Date(`${today}T${timeLogs.timeIn}`);
-          const now = new Date();
-
-          let diffInSeconds = Math.floor((now - timeInDateTime) / 1000);
-
-          // Subtract lunch break time if applicable
-          if (timeLogs.lunchBreakStart && timeLogs.lunchBreakEnd) {
-            const lunchStart = new Date(`${today}T${timeLogs.lunchBreakStart}`);
-            const lunchEnd = new Date(`${today}T${timeLogs.lunchBreakEnd}`);
-            const lunchDuration = Math.floor((lunchEnd - lunchStart) / 1000);
-            diffInSeconds -= lunchDuration;
-          } else if (
-            timeLogs.lunchBreakStart &&
-            !timeLogs.lunchBreakEnd &&
-            isOnBreak
-          ) {
-            // Currently on break - subtract break time so far
-            const lunchStart = new Date(`${today}T${timeLogs.lunchBreakStart}`);
-            const breakDuration = Math.floor((now - lunchStart) / 1000);
-            diffInSeconds -= breakDuration;
-          }
-
-          setHoursWorked(Math.max(0, diffInSeconds));
-        }
-      }
-    } catch (error) {
-      if (error.response?.status !== 404) {
-        console.error("Error fetching current activity:", error);
-        setError("Failed to fetch current activity");
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const addLog = (message) => {
-    const username = user?.username || "User";
-    const newLog = {
-      id: Date.now().toString(),
-      message: message.replace("**User**", `${username}`),
-      timestamp: currentTime.toLocaleTimeString("en-US", {
-        hour12: true,
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    };
-    setLogs((prev) => [newLog, ...prev]);
-  };
 
   const handleTimeInOut = async () => {
     if (isTimedIn) {
-      // When timing out, first record the timeout, then open the modal
       setIsLoading(true);
       setError(null);
       try {
@@ -158,9 +40,7 @@ const TimeComponent = () => {
         });
         console.log("Timeout recorded successfully:", response.data);
         
-        // After successful timeout, open the accomplishment modal
         setIsTimeOutModalOpen(true);
-        addLog("**User** has timed out - filling accomplishment form");
       } catch (error) {
         console.error("Error timing out:", error);
         setError(error.response?.data?.error || "Failed to time out");
@@ -171,22 +51,17 @@ const TimeComponent = () => {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await axios.post(`${API_BASE}/time-in`, {}, {
+        await axios.post(`${API_BASE}/time-in`, {}, {
           headers: getAuthHeaders(),
         });
 
         setIsTimedIn(true);
-        addLog("**User** has timed in");
-        
-        // Refresh state from backend
         await fetchCurrentActivity();
       } catch (error) {
         console.error("Error timing in:", error);
         
-        // Handle specific backend errors
         if (error.response?.status === 400 && error.response?.data?.error?.includes('already recorded')) {
           setError('You have already timed in today');
-          // Sync state with backend
           await fetchCurrentActivity();
         } else {
           setError(error.response?.data?.error || "Failed to time in");
@@ -201,8 +76,6 @@ const TimeComponent = () => {
     setIsLoading(true);
     setError(null);
     try {
-      // Timeout was already recorded when Time Out button was clicked
-      // Now just submit the accomplishment form
       if (accomplishmentData) {
         console.log("Submitting accomplishment form...");
         const token = localStorage.getItem("token");
@@ -214,14 +87,9 @@ const TimeComponent = () => {
         console.log("Accomplishment form submitted successfully");
       }
 
-      // Update UI state
       setIsTimedIn(false);
       setIsOnBreak(false);
-      addLog("**User** has submitted daily accomplishments");
-      setHoursWorked(0);
       setIsTimeOutModalOpen(false);
-      
-      // Refresh state from backend
       await fetchCurrentActivity();
     } catch (error) {
       console.error("Error submitting accomplishment:", error);
@@ -237,19 +105,16 @@ const TimeComponent = () => {
     try {
       const endpoint = isOnBreak ? "end-lunch-break" : "lunch-break";
 
-      const response = await axios.post(`${API_BASE}/${endpoint}`, {}, {
+      await axios.post(`${API_BASE}/${endpoint}`, {}, {
         headers: getAuthHeaders(),
       });
 
       if (isOnBreak) {
         setIsOnBreak(false);
-        addLog("**User** has ended break");
       } else {
         setIsOnBreak(true);
-        addLog("**User** has started break");
       }
       
-      // Refresh state from backend
       await fetchCurrentActivity();
     } catch (error) {
       console.error("Error updating break status:", error);
@@ -257,15 +122,6 @@ const TimeComponent = () => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const formatTime = (seconds) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    return `${hours.toString().padStart(2, "0")}:${minutes
-      .toString()
-      .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
   const formatCurrentTime = (date) => {
@@ -297,6 +153,7 @@ const TimeComponent = () => {
           </CardContent>
         </Card>
       )}
+
       {/* Time Display Section */}
       <Card>
         <CardContent className="pt-6">
@@ -316,7 +173,7 @@ const TimeComponent = () => {
                 Hours Worked Today
               </div>
               <div className="text-4xl font-mono font-bold text-primary">
-                {formatTime(hoursWorked)}
+                {formatTime(activityData?.timeLogs ? calculateHoursWorked(activityData.timeLogs) : 0)}
               </div>
               <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                 {isTimedIn && (
@@ -370,54 +227,63 @@ const TimeComponent = () => {
               disabled={!isTimedIn || isLoading}
               className="h-16 text-lg font-semibold"
             >
-              {isLoading ? (
-                "Processing..."
-              ) : isOnBreak ? (
-                <>
-                  <Pause className="mr-2 h-5 w-5" />
-                  End Lunch Break
-                </>
-              ) : (
-                <>
-                  <Coffee className="mr-2 h-5 w-5" />
-                  Start Lunch Break
-                </>
-              )}
+              {(() => {
+                if (isLoading) return "Processing...";
+                if (isOnBreak) {
+                  return (
+                    <>
+                      <Pause className="mr-2 h-5 w-5" />
+                      End Lunch Break
+                    </>
+                  );
+                }
+                return (
+                  <>
+                    <Coffee className="mr-2 h-5 w-5" />
+                    Start Lunch Break
+                  </>
+                );
+              })()}
             </Button>
           </div>
-          {/* Modal should show when isTimeOutModalOpen is true, regardless of isTimedIn state */}
+          
           <AccomplishmentModal
             isOpen={isTimeOutModalOpen}
             onClose={() => setIsTimeOutModalOpen(false)}
             onSubmit={handleAccomplishmentSubmit}
+            mode="edit"
           />
         </CardContent>
       </Card>
 
       {/* Activity Logs */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg">Activity Logs</CardTitle>
         </CardHeader>
         <CardContent>
           <ScrollArea className="h-64 w-full">
-            {logs.length === 0 ? (
+            {!activityData?.timeLogs ? (
               <div className="text-center text-muted-foreground py-8">
                 No activity logged yet
               </div>
             ) : (
               <div className="space-y-3">
-                {logs.map((log) => (
-                  <div
-                    key={log.id}
-                    className="flex justify-between items-start p-3 bg-muted/50 rounded-lg"
-                  >
-                    <span className="text-sm">{log.message}</span>
-                    <span className="text-xs text-muted-foreground font-mono ml-4 flex-shrink-0">
-                      {log.timestamp}
-                    </span>
-                  </div>
-                ))}
+                {(() => {
+                  const logs = generateLogsFromTimeLogs(activityData.timeLogs);
+                  console.log("Generated logs:", logs);
+                  return logs.map((log) => (
+                    <div
+                      key={log.id}
+                      className="flex justify-between items-start p-3 bg-muted/50 rounded-lg"
+                    >
+                      <span className="text-sm">{log.message}</span>
+                      <span className="text-xs text-muted-foreground font-mono ml-4 flex-shrink-0">
+                        {log.timestamp}
+                      </span>
+                    </div>
+                  ));
+                })()}
               </div>
             )}
           </ScrollArea>
