@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import ModalEmail from "./ModalEmail";
 import SubmitAlert from "./SubmitAlert";
 import ModalSubmittedList from "./ModalSubmittedList";
+import Navbar from "../layout/Navbar/Navbar";
 
 export default function Home() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -24,13 +25,9 @@ export default function Home() {
 
   return (
     <div className="app">
-      <nav className="nav">
-        {/* <div className="W">Welcome, {username}!</div> */}
-        <div className="about">About</div>
+      <Navbar />
 
-      </nav>
-
-      <div className="center-content">
+      <div className="center-content pt-[48px]">
         <h1 className="title">NOAH Ticket ark</h1>
 
         <button className="create-button" onClick={openModal}>
@@ -42,11 +39,9 @@ export default function Home() {
         </button>
       </div>
 
-
       {isModalOpen && (
         <ModalEmail onClose={closeModal} onSubmit={submitTicket} />
       )}
-
 
       {isSubmitAlertOpen && (
         <SubmitAlert
