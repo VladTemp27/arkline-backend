@@ -1,5 +1,5 @@
 import axios from "axios";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -27,7 +27,45 @@ const TimeComponent = () => {
     calculateHoursWorked,
     fetchCurrentActivity,
     getAuthHeaders,
+    getUserInfo,
   } = useTimer();
+
+  // Check if user has timed out but hasn't submitted accomplishment form
+  const checkForPendingTimeOut = async () => {
+    try {
+      const user = await getUserInfo();
+      if (!user) return;
+
+      const logs = activityData?.timeLogs ? generateLogsFromTimeLogs(activityData.timeLogs) : [];
+      console.log("Checking logs for pending timeout:", logs);
+
+      // Look for timeout log entry
+      const hasTimeOut = logs.some(log => 
+        log.type === 'timeOut' && 
+        log.message.includes(user.username || user.firstName || 'User') &&
+        log.message.includes('timed out')
+      );
+
+      console.log("Has timeout entry:", hasTimeOut);
+      console.log("Current isTimedIn state:", isTimedIn);
+
+      // If user has timed out but modal isn't open, and they're not currently timed in
+      // This indicates they refreshed during the accomplishment form
+      if (hasTimeOut && !isTimedIn && !isTimeOutModalOpen) {
+        console.log("Detected pending timeout - showing modal");
+        setIsTimeOutModalOpen(true);
+      }
+    } catch (error) {
+      console.error("Error checking for pending timeout:", error);
+    }
+  };
+
+  // Check for pending timeout when component mounts or activity data changes
+  useEffect(() => {
+    if (activityData?.timeLogs) {
+      checkForPendingTimeOut();
+    }
+  }, [activityData, isTimedIn, isTimeOutModalOpen]);
 
   const handleTimeInOut = async () => {
     if (isTimedIn) {
