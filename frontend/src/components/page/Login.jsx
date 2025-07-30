@@ -6,17 +6,32 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label"
 import { Link } from "react-router-dom";
+import axios from "axios";
+
 
 export default function Login() {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    localStorage.setItem("username", email);
-    localStorage.setItem("password", password);
-    navigate("/home");
+    setError("");
+    try {
+      const response = await axios.post("/api/user-service/auth/authenticate", {
+        username,
+        password,
+      });
+      localStorage.setItem("token", response.data.token);
+      localStorage.setItem("username", response.data.username);
+      navigate("/home");
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+        "Login failed. Please check your credentials."
+      );
+    }
   };
 
   return (
@@ -24,44 +39,46 @@ export default function Login() {
       <div className={cn("flex flex-col gap-6 w-full max-w-sm p-6 bg-white rounded-lg shadow-md")}>
         <form onSubmit={handleSubmit}>
           <div className="flex flex-col gap-6">
+            {error && (
+              <div className="text-red-500 text-sm text-center">{error}</div>
+            )}
             <div className="flex flex-col items-center gap-2">
               <div className="flex size-8 items-center justify-center rounded-md">
                 <img src="\batmanicon.png" alt="#" />
-                {/* <GalleryVerticalEnd className="size-6" /> */}
               </div>
               <h1 className="text-xl font-bold">Noah Ticket</h1>
-              {/* <div className="text-center text-sm text-muted-foreground">
-                Don&apos;t have an account?{" "}
-                <a href="#" className="underline underline-offset-4">
-                  Sign up
-                </a>
-              </div> */}
             </div>
 
             <div className="grid gap-3">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="username">Username</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="email@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="username"
+                type="text"
+                placeholder="Enter your username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 required
               />
             </div>
 
             <div className="grid gap-3">
-                <div className="flex items-center"> 
-                  <Label htmlFor="password">Password</Label>
-                  <a
-                    href="#"
-                    className="ml-auto text-sm underline-offset-2 hover:underline"
-                  >
-                    Forgot your password?
-                  </a>
-                </div>
-                <Input id="password" type="password" required />
+              <div className="flex items-center">
+                <Label htmlFor="password">Password</Label>
+                <a
+                  href="#"
+                  className="ml-auto text-sm underline-offset-2 hover:underline"
+                >
+                  Forgot your password?
+                </a>
               </div>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
 
             <Button type="submit" className="w-full">
               Login
