@@ -356,7 +356,7 @@ export default function AccomplishmentDashboard() {
       
       // Try to fetch from API first
       try {
-        const response = await axios.get(`${API_BASE_URL}/api/accomplishment-tracking/time-log/timelogs`, {
+        const response = await axios.get(`${API_BASE_URL}/api/accomplishment-tracking/time-service/timelogs`, {
           headers: apiHeaders
         })
 
