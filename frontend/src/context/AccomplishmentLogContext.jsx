@@ -238,6 +238,7 @@ export const TimerProvider = ({ children }) => {
       formatTime,
       resetToDefaults,
       activityData,
+      setActivityData,
       callActivityAPI,
       generateLogsFromTimeLogs,
       calculateHoursWorked,
