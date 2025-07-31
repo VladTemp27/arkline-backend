@@ -79,15 +79,26 @@ export const TimerProvider = ({ children }) => {
   // Call activity API and generate logs from the response
   const callActivityAPI = useCallback(async () => {
     try {
-      const response = await axios.get(`${API_BASE}/activity`, {
-        headers: getAuthHeaders(),
-      });
+      let response;
+      try {
+        response = await axios.get(`${API_BASE}/activity`, {
+          headers: getAuthHeaders(),
+        });
+      } catch (error) {
+        if (error.response && error.response.status === 404) {
+          // Handle 404 Not Found gracefully (e.g., return null or empty data)
+          return null;
+        }
+        throw error; // Rethrow other errors
+      }
       
       setActivityData(response.data);
       
       return response.data;
     } catch (error) {
-      console.error("Error calling activity API:", error);
+      if (!(error.response && error.response.status === 404)) {
+        console.error("No activity");
+      }
       return null;
     }
   }, [getAuthHeaders]);
