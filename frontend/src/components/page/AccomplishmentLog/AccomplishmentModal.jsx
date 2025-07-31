@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, X } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -25,7 +25,6 @@ import {
 } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-import { X } from "lucide-react";
 
 import axios from "axios";
 
@@ -110,6 +109,8 @@ export default function AccomplishmentModal({
   });
   const [editMode, setEditMode] = useState(mode);
   const [currentProjectHead, setCurrentProjectHead] = useState("");
+  const [validationError, setValidationError] = useState("");
+  const [showValidationModal, setShowValidationModal] = useState(false);
 
   // Update accomplishment state when propAccomplishment changes or modal opens
   useEffect(() => {
@@ -167,6 +168,38 @@ export default function AccomplishmentModal({
   };
 
   const handleSubmit = async () => {
+    // Validate required fields
+    const requiredFields = {
+      groupName: "Group Name",
+      activitiesType: "Type of Activities", 
+      activities: "Activities",
+      targetEndDate: "Target End Date",
+      actualEndDate: "Actual End Date",
+      status: "Current Status",
+      projectHeads: "Project Heads",
+      dateAssigned: "Date Assigned"
+    };
+
+    for (const [field, label] of Object.entries(requiredFields)) {
+      if (field === "projectHeads") {
+        if (!accomplishment[field] || accomplishment[field].length === 0) {
+          setValidationError(`${label} is required. Please add at least one project head.`);
+          setShowValidationModal(true);
+          return;
+        }
+      } else if (field === "activities") {
+        if (!accomplishment[field] || accomplishment[field].trim() === "") {
+          setValidationError(`${label} is required. Please enter your activities.`);
+          setShowValidationModal(true);
+          return;
+        }
+      } else if (!accomplishment[field]) {
+        setValidationError(`${label} is required. Please fill in this field.`);
+        setShowValidationModal(true);
+        return;
+      }
+    }
+
     // Helper function to format date as YYYY-MM-DD
     const formatDateForBackend = (date) => {
       if (!date) return null;
@@ -281,10 +314,11 @@ export default function AccomplishmentModal({
   };
 
   return (
-    <Dialog 
-      open={isOpen} 
-      onOpenChange={editMode === "edit" ? undefined : onClose}
-    >
+    <>
+      <Dialog 
+        open={isOpen} 
+        onOpenChange={editMode === "edit" ? undefined : onClose}
+      >
       <DialogContent className={`max-w-2xl max-h-[90vh] overflow-y-auto ${editMode === "edit" ? "[&>button]:hidden" : ""}`}>
         <DialogHeader>
           <DialogTitle>
@@ -381,7 +415,9 @@ export default function AccomplishmentModal({
               )}
             </div>
             <div className="space-y-2">
-              <Label>Date Assigned</Label>
+              <Label>
+                Date Assigned<span className="text-red-500">*</span>
+              </Label>
               {renderField(
                 "dateAssigned",
                 accomplishment.dateAssigned
@@ -639,11 +675,9 @@ export default function AccomplishmentModal({
           {/* Buttons based on mode */}
           <div className="flex justify-end space-x-2 pt-4">
             {editMode === "edit" && (
-              <>
-                <Button onClick={handleSubmit} className="w-full">
-                  Submit & Time Out
-                </Button>
-              </>
+              <Button onClick={handleSubmit} className="w-full">
+                Submit & Time Out
+              </Button>
             )}
             {editMode === "view" && (
               <>
@@ -665,5 +699,23 @@ export default function AccomplishmentModal({
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Validation Error Modal */}
+    <Dialog open={showValidationModal} onOpenChange={setShowValidationModal}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-red-600">Required Field Missing</DialogTitle>
+        </DialogHeader>
+        <div className="py-4">
+          <p className="text-sm text-gray-700">{validationError}</p>
+        </div>
+        <div className="flex justify-end">
+          <Button onClick={() => setShowValidationModal(false)}>
+            OK
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
