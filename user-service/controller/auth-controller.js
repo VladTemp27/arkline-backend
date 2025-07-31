@@ -69,7 +69,7 @@ function handleAuthorize(req, res) {
         // Store user info in Redis for session management
         redisClient.set(decoded.userId, JSON.stringify(decoded), 'EX', 3600); // 1 hour expiration
 
-        return res.status(200).send({ message: 'Authorization successful', user: decoded });
+        return res.status(200).send({ message: 'Authorization successful', username: decoded.username, role: decoded.role });
     } catch (error) {
         return res.status(401).send({ error: 'Invalid token' });
     }

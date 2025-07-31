@@ -57,9 +57,35 @@ export const RequireAuth = ({ children }) => {
     return children;
 };
 
+
+export const RedirectIfAdmin = ({ children }) => {
+    const token = localStorage.getItem('token');
+    const [isAdmin, setIsAdmin] = useState(null);
+
+    useEffect(() => {
+        if (token) {
+            checkAuth(token, 'admin').then((result) => {
+                setIsAdmin(result);
+            });
+        } else {
+            setIsAdmin(false);
+        }
+    }, [token]);
+
+    if (isAdmin === null) {
+        return <Loading />;
+    }
+
+    if (isAdmin === true) {
+        return <Navigate to="/admin" replace />;
+    }
+
+    return children;
+}
+
 // This function checks if the user is authenticated by verifying the token
 // It returns true if the token is valid, otherwise false
-async function checkAuth(token) {
+async function checkAuth(token, role = null) {
     if (!token){
         return false;
     }
@@ -73,6 +99,9 @@ async function checkAuth(token) {
         console.log(response.data)
 
         if(response.status === 200) {
+            if (role) {
+                return response.data.role === role;
+            }
             return true;
         }
 
@@ -82,3 +111,4 @@ async function checkAuth(token) {
         return false;
     }
 }
+
