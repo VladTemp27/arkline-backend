@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Clock, Play, Pause, Coffee, StopCircle } from "lucide-react";
 import AccomplishmentModal from "./AccomplishmentModal";
+import ConfirmationModal from "./ConfirmationModal";
 import { useTimer } from "@/context/AccomplishmentLogContext";
 
 const TimeComponent = () => {
@@ -13,6 +14,8 @@ const TimeComponent = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isTimeOutModalOpen, setIsTimeOutModalOpen] = useState(false);
+  const [isConfirmTimeOutOpen, setIsConfirmTimeOutOpen] = useState(false);
+  const [isConfirmBreakOpen, setIsConfirmBreakOpen] = useState(false);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false); // Add this
 
   const {
@@ -83,8 +86,8 @@ const TimeComponent = () => {
       try {
         const decoded = JSON.parse(atob(token.split(".")[1]));
         userId = decoded.userId;
-      } catch (error) {
-        console.log("Error extracting userId from token");
+      } catch (tokenError) {
+        console.log("Error extracting userId from token:", tokenError);
         return;
       }
 
@@ -92,9 +95,20 @@ const TimeComponent = () => {
       console.log(
         "[checkForPendingTimeOut] Fetching activity data for timeout check..."
       );
-      const activityResponse = await axios.get(`${API_BASE}/activity`, {
-        headers: getAuthHeaders(),
-      });
+
+      let activityResponse;
+      try {
+        activityResponse = await axios.get(`${API_BASE}/activity`, {
+          headers: getAuthHeaders(),
+        });
+      } catch (err) {
+        if (err.response && err.response.status === 404) {
+          console.log("No activity found for today.");
+          return;
+        } else {
+          throw err;
+        }
+      }
 
       console.log("Activity API response received");
       const currentActivityData = activityResponse.data;
@@ -183,26 +197,8 @@ const TimeComponent = () => {
 
   const handleTimeInOut = async () => {
     if (isTimedIn) {
-      setIsLoading(true);
-      setError(null);
-      try {
-        console.log("Recording timeout in database...");
-        const response = await axios.post(
-          `${API_BASE}/time-out`,
-          {},
-          {
-            headers: getAuthHeaders(),
-          }
-        );
-        console.log("Timeout recorded successfully:", response.data);
-
-        setIsTimeOutModalOpen(true);
-      } catch (error) {
-        console.error("Error timing out:", error);
-        setError(error.response?.data?.error || "Failed to time out");
-      } finally {
-        setIsLoading(false);
-      }
+      // Show confirmation modal first
+      setIsConfirmTimeOutOpen(true);
     } else {
       setTimeOutCompleted(false); // Reset flag when timing in (for new day)
       setIsLoading(true);
@@ -233,6 +229,31 @@ const TimeComponent = () => {
       } finally {
         setIsLoading(false);
       }
+    }
+  };
+
+  // New function to handle confirmed time out
+  const handleConfirmedTimeOut = async () => {
+    setIsConfirmTimeOutOpen(false);
+    setIsLoading(true);
+    setError(null);
+    try {
+      console.log("Recording timeout in database...");
+      const response = await axios.post(
+        `${API_BASE}/time-out`,
+        {},
+        {
+          headers: getAuthHeaders(),
+        }
+      );
+      console.log("Timeout recorded successfully:", response.data);
+
+      setIsTimeOutModalOpen(true);
+    } catch (error) {
+      console.error("Error timing out:", error);
+      setError(error.response?.data?.error || "Failed to time out");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -289,6 +310,13 @@ const TimeComponent = () => {
   };
 
   const handleBreak = async () => {
+    // Show confirmation modal first
+    setIsConfirmBreakOpen(true);
+  };
+
+  // New function to handle confirmed break action
+  const handleConfirmedBreak = async () => {
+    setIsConfirmBreakOpen(false);
     setIsLoading(true);
     setError(null);
     try {
@@ -450,6 +478,34 @@ const TimeComponent = () => {
             onSubmit={handleAccomplishmentSubmit}
             onEdit={fetchCurrentActivity}
             mode="edit"
+          />
+
+          {/* Time Out Confirmation Modal */}
+          <ConfirmationModal
+            isOpen={isConfirmTimeOutOpen}
+            onClose={() => setIsConfirmTimeOutOpen(false)}
+            onConfirm={handleConfirmedTimeOut}
+            title="Confirm Time Out"
+            description="Time out and submit accomplishments?"
+            confirmText="Yes, Time Out"
+            confirmVariant="destructive"
+            isLoading={isLoading}
+          />
+
+          {/* Break Confirmation Modal */}
+          <ConfirmationModal
+            isOpen={isConfirmBreakOpen}
+            onClose={() => setIsConfirmBreakOpen(false)}
+            onConfirm={handleConfirmedBreak}
+            title={isOnBreak ? "End Lunch Break" : "Start Lunch Break"}
+            description={
+              isOnBreak
+                ? "Are you sure you want to end your lunch break?"
+                : "Are you sure you want to start your lunch break?"
+            }
+            confirmText={isOnBreak ? "Yes, End Break" : "Yes, Start Break"}
+            confirmVariant={isOnBreak ? "default" : "secondary"}
+            isLoading={isLoading}
           />
         </CardContent>
       </Card>
