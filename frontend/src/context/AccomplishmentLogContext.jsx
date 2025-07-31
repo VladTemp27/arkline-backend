@@ -83,7 +83,6 @@ export const TimerProvider = ({ children }) => {
         headers: getAuthHeaders(),
       });
       
-      console.log("Activity API response:", response.data);
       setActivityData(response.data);
       
       return response.data;
@@ -101,8 +100,6 @@ export const TimerProvider = ({ children }) => {
   
   // Get username from localStorage instead of API
   const username = localStorage.getItem("username") || "User";
-  
-  console.log("Using username for logs:", username);
   
   if (timeLogsData.timeIn) {
     logs.push({
@@ -241,6 +238,7 @@ export const TimerProvider = ({ children }) => {
       formatTime,
       resetToDefaults,
       activityData,
+      setActivityData,
       callActivityAPI,
       generateLogsFromTimeLogs,
       calculateHoursWorked,

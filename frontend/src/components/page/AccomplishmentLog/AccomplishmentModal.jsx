@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, X } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -25,7 +25,6 @@ import {
 } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-import { X } from "lucide-react";
 
 import axios from "axios";
 
@@ -52,8 +51,6 @@ export default function AccomplishmentModal({
         percentageOfActivities: 0,
         projectHeads: [],
       };
-
-    console.log("Raw data received:", data); // Debug log
 
     const accomplishmentData = data.accomplishment || data.details || data;
 
@@ -95,7 +92,6 @@ export default function AccomplishmentModal({
       projectHeads: accomplishmentData?.projectHeads || [],
     };
 
-    console.log("Transformed data:", transformed); // Debug log
     return transformed;
   };
 
@@ -113,24 +109,20 @@ export default function AccomplishmentModal({
   });
   const [editMode, setEditMode] = useState(mode);
   const [currentProjectHead, setCurrentProjectHead] = useState("");
+  const [validationError, setValidationError] = useState("");
+  const [showValidationModal, setShowValidationModal] = useState(false);
 
   // Update accomplishment state when propAccomplishment changes or modal opens
   useEffect(() => {
     if (propAccomplishment && isOpen) {
       const transformedData = getTransformedData(propAccomplishment);
-      console.log("Setting accomplishment state to:", transformedData); // Debug log
       setAccomplishment(transformedData);
       setEditMode(mode); // Reset edit mode when modal opens
-      console.log("Modal opened with mode:", mode); // Debug log
     } else if (isOpen && !propAccomplishment) {
       // When opening for timeout (new accomplishment), should be in edit mode
-      console.log("Modal opened for new accomplishment with mode:", mode); // Debug log
       setEditMode(mode);
     }
   }, [propAccomplishment, isOpen, mode]);
-
-  console.log("Current accomplishment state:", accomplishment); // Debug log
-  console.log("Current editMode:", editMode); // Debug log
 
   // Helper to check if a field is editable
   const isEditable = (field) => {
@@ -176,6 +168,38 @@ export default function AccomplishmentModal({
   };
 
   const handleSubmit = async () => {
+    // Validate required fields
+    const requiredFields = {
+      groupName: "Group Name",
+      activitiesType: "Type of Activities", 
+      activities: "Activities",
+      targetEndDate: "Target End Date",
+      actualEndDate: "Actual End Date",
+      status: "Current Status",
+      projectHeads: "Project Heads",
+      dateAssigned: "Date Assigned"
+    };
+
+    for (const [field, label] of Object.entries(requiredFields)) {
+      if (field === "projectHeads") {
+        if (!accomplishment[field] || accomplishment[field].length === 0) {
+          setValidationError(`${label} is required. Please add at least one project head.`);
+          setShowValidationModal(true);
+          return;
+        }
+      } else if (field === "activities") {
+        if (!accomplishment[field] || accomplishment[field].trim() === "") {
+          setValidationError(`${label} is required. Please enter your activities.`);
+          setShowValidationModal(true);
+          return;
+        }
+      } else if (!accomplishment[field]) {
+        setValidationError(`${label} is required. Please fill in this field.`);
+        setShowValidationModal(true);
+        return;
+      }
+    }
+
     // Helper function to format date as YYYY-MM-DD
     const formatDateForBackend = (date) => {
       if (!date) return null;
@@ -206,9 +230,20 @@ export default function AccomplishmentModal({
     };
 
     // Pass the payload to the parent component to handle the API calls
-    // Parent will first call time-out, then submit the form
-    onSubmit && onSubmit(payload);
-    handleClose();
+    // Parent will handle submission, state updates, and refresh
+    try {
+      await onSubmit && onSubmit(payload);
+      
+      // Trigger additional refresh to ensure data is up-to-date
+      if (onEdit) {
+        await onEdit(); // This ensures TimeComponent refreshes
+      }
+      
+      handleClose();
+    } catch (error) {
+      console.error("Error in accomplishment submission:", error);
+      // Don't close modal if there's an error
+    }
   };
 
   const handleClose = () => {
@@ -256,25 +291,19 @@ export default function AccomplishmentModal({
       const date =
         propAccomplishment?.date || new Date().toISOString().split("T")[0];
 
-      console.log("Updating accomplishment for userId:", userId, "date:", date);
-
       await axios.post(
         `/api/accomplishment-tracking/accomplishment-service/form?userId=${userId}&date=${date}`,
         payload,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      console.log("Accomplishment updated successfully");
       setEditMode("view");
 
       // ✅ Call the refresh function to update parent component's data
       if (onEdit) {
-        console.log("Calling onEdit to refresh data...");
         onEdit(); // This will trigger fetchLogs() in the parent component
       }
 
-      // Optional: Show success message
-      console.log("Data refresh triggered");
     } catch (error) {
       console.error("Error updating accomplishment:", error);
       alert(
@@ -285,10 +314,11 @@ export default function AccomplishmentModal({
   };
 
   return (
-    <Dialog 
-      open={isOpen} 
-      onOpenChange={editMode === "edit" ? undefined : onClose}
-    >
+    <>
+      <Dialog 
+        open={isOpen} 
+        onOpenChange={editMode === "edit" ? undefined : onClose}
+      >
       <DialogContent className={`max-w-2xl max-h-[90vh] overflow-y-auto ${editMode === "edit" ? "[&>button]:hidden" : ""}`}>
         <DialogHeader>
           <DialogTitle>
@@ -385,7 +415,9 @@ export default function AccomplishmentModal({
               )}
             </div>
             <div className="space-y-2">
-              <Label>Date Assigned</Label>
+              <Label>
+                Date Assigned<span className="text-red-500">*</span>
+              </Label>
               {renderField(
                 "dateAssigned",
                 accomplishment.dateAssigned
@@ -643,11 +675,9 @@ export default function AccomplishmentModal({
           {/* Buttons based on mode */}
           <div className="flex justify-end space-x-2 pt-4">
             {editMode === "edit" && (
-              <>
-                <Button onClick={handleSubmit} className="w-full">
-                  Submit & Time Out
-                </Button>
-              </>
+              <Button onClick={handleSubmit} className="w-full">
+                Submit & Time Out
+              </Button>
             )}
             {editMode === "view" && (
               <>
@@ -669,5 +699,23 @@ export default function AccomplishmentModal({
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Validation Error Modal */}
+    <Dialog open={showValidationModal} onOpenChange={setShowValidationModal}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-red-600">Required Field Missing</DialogTitle>
+        </DialogHeader>
+        <div className="py-4">
+          <p className="text-sm text-gray-700">{validationError}</p>
+        </div>
+        <div className="flex justify-end">
+          <Button onClick={() => setShowValidationModal(false)}>
+            OK
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
