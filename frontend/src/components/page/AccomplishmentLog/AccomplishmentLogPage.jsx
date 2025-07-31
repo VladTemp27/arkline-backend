@@ -44,7 +44,8 @@ export default function AccomplishmentLogPage() {
         status: calculateStatus(dayData.timeLogs),
         accomplishment: dayData.accomplishmentLog,
         details: dayData.accomplishmentLog
-      }));
+      }))
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
       setLogs(processedLogs);
 
       // If a modal is open, update its data too
