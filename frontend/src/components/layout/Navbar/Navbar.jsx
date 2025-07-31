@@ -34,11 +34,20 @@ const Navbar = () => {
     setShowLogoutDialog(false);
   };
 
+  const handleAccomplishmentLogsClick = () => {
+    navigate("/accomplishmentlog");
+  };
+
   return (
     <>
       <nav className="nav fixed top-0 w-full z-50">
         <div className="about">About</div>
-        
+        <div 
+          className="about cursor-pointer hover:text-gray-200 transition-colors"
+          onClick={handleAccomplishmentLogsClick}
+        >
+          Accomplishment Logs
+        </div>
         <div className="ml-auto">
           <button
             onClick={handleLogoutClick}
