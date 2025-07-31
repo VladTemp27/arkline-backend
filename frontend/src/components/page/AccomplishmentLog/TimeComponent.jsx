@@ -1,5 +1,5 @@
 import axios from "axios";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -13,7 +13,7 @@ const TimeComponent = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isTimeOutModalOpen, setIsTimeOutModalOpen] = useState(false);
-
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false); // Add this
 
   const {
     currentTime,
@@ -33,64 +33,107 @@ const TimeComponent = () => {
   } = useTimer();
 
   // Check if user has timed out but hasn't submitted accomplishment form
-  const checkForPendingTimeOut = async () => {
+  const checkForPendingTimeOut = useCallback(async () => {
     try {
+      console.log("[checkForPendingTimeOut] called");
       // Check if timeout was already completed today (persistent check)
-      if (getTimeOutCompleted()) {
+      const completed = getTimeOutCompleted();
+      console.log("[checkForPendingTimeOut] getTimeOutCompleted:", completed);
+      if (completed) {
         console.log("Timeout already completed today, skipping modal");
         return;
       }
       
-      // Don't check if we're currently in a timeout session or if user is timed in
-      if (isTimedIn || isTimeOutModalOpen) return;
+      // Wait for initial load to complete before checking
+      console.log("[checkForPendingTimeOut] initialLoadComplete:", initialLoadComplete);
+      if (!initialLoadComplete) {
+        console.log("Initial load not complete, skipping timeout check");
+        return;
+      }
+      
+      // Don't check if modal is already open
+      console.log("[checkForPendingTimeOut] isTimeOutModalOpen:", isTimeOutModalOpen);
+      if (isTimeOutModalOpen) {
+        console.log("Modal already open, skipping");
+        return;
+      }
       
       // Get username directly from localStorage
       const username = localStorage.getItem("username");
-      if (!username) return;
+      console.log("[checkForPendingTimeOut] username from localStorage:", username);
+      if (!username) {
+        console.log("No username found in localStorage, skipping");
+        return;
+      }
 
-      // Generate logs from current activity data
-      const logs = activityData?.timeLogs ? generateLogsFromTimeLogs(activityData.timeLogs) : [];
-      console.log("Checking logs for pending timeout:", logs);
+      // Get user ID for backend verification
+      const token = localStorage.getItem("token");
+      console.log("[checkForPendingTimeOut] token from localStorage:", token);
+      if (!token) {
+        console.log("No token found in localStorage");
+        return;
+      }
 
-      // Look for timeout log entry using the stored username
-      const hasTimeOut = logs.some(log => 
-        log.type === 'timeOut' && 
-        log.message.includes(username) &&
-        log.message.includes('timed out')
-      );
+      // ✅ FIX: Use the working activity endpoint instead of timelogs
+      console.log("[checkForPendingTimeOut] Fetching activity data...");
+      const activityResponse = await axios.get(`${API_BASE}/activity`, {
+        headers: getAuthHeaders(),
+      });
 
-      // ✅ NEW: Also check if there's a recent time-in entry after the timeout
-      // If user has timed in after the timeout, don't show modal (they've started a new session)
-      const hasRecentTimeIn = logs.some(log => 
-        log.type === 'timeIn' && 
-        log.message.includes(username) &&
-        log.message.includes('timed in')
-      );
+      console.log("Activity API response:", activityResponse.data);
 
-      console.log("Has timeout entry:", hasTimeOut);
-      console.log("Has recent time-in entry:", hasRecentTimeIn);
-      console.log("Current isTimedIn state:", isTimedIn);
+      // ✅ SIMPLIFIED LOGIC: Check for timeout and accomplishment form
+      // 1. Scan time log for time out
+      const currentActivityData = activityResponse.data;
+      const timeLogData = currentActivityData?.timeLogs;
+      console.log("[checkForPendingTimeOut] timeLogData:", timeLogData);
+      const hasTimeOut = !!timeLogData?.timeOut;
+      console.log("Backend shows - TimeOut:", hasTimeOut);
 
-      // ✅ FIXED: Only show modal if there's a timeout BUT no recent time-in
-      // This means user refreshed during accomplishment form, not starting new session
-      if (hasTimeOut && !hasRecentTimeIn && !isTimedIn && !isTimeOutModalOpen) {
-        console.log("Detected pending timeout (no recent time-in) - showing modal");
+      // 2. Check if user has submitted an accomplishment form
+      const hasAccomplishmentForm = !!currentActivityData?.accomplishmentLog;
+      console.log("Has accomplishment form for today:", hasAccomplishmentForm);
+
+      // Show modal if:
+      // - User has timed out today (hasTimeOut)
+      // - No accomplishment form submitted yet (!hasAccomplishmentForm)
+      // - Modal is not already open (!isTimeOutModalOpen)
+      if (hasTimeOut && !hasAccomplishmentForm && !isTimeOutModalOpen) {
+        console.log("Detected timeout with no accomplishment form - showing modal");
+        
+        // Update local state to match backend reality
+        setIsTimedIn(false);
+        setIsOnBreak(false);
+        
         setIsTimeOutModalOpen(true);
-      } else if (hasTimeOut && hasRecentTimeIn) {
-        console.log("Found timeout but user has timed in again - marking as completed");
-        setTimeOutCompleted(true); // Mark as completed since they've moved on to a new session
+      } else if (hasTimeOut && hasAccomplishmentForm) {
+        console.log("Found timeout with accomplishment form - marking as completed");
+        setTimeOutCompleted(true);
+        setIsTimedIn(false); // Ensure state matches backend
+      } else {
+        console.log("[checkForPendingTimeOut] No modal condition met.");
+        console.log("Conditions: hasTimeOut:", hasTimeOut, "hasAccomplishmentForm:", hasAccomplishmentForm);
       }
     } catch (error) {
       console.error("Error checking for pending timeout:", error);
     }
-  };
+  }, [initialLoadComplete, isTimeOutModalOpen]);
 
-  // Check for pending timeout when component mounts or activity data changes
+  // Separate effect for initial load
   useEffect(() => {
-    if (activityData?.timeLogs) {
+    if (activityData !== null && !initialLoadComplete) {
+      console.log("Initial load complete, activityData:", activityData);
+      setInitialLoadComplete(true);
+    }
+  }, [activityData, initialLoadComplete]);
+
+  // Separate effect for timeout checking - only runs when truly needed
+  useEffect(() => {
+    if (initialLoadComplete && !isTimeOutModalOpen) {
+      console.log("Running timeout check...");
       checkForPendingTimeOut();
     }
-  }, [activityData, isTimedIn, isTimeOutModalOpen]);
+  }, [initialLoadComplete, isTimeOutModalOpen, checkForPendingTimeOut]);
 
   const handleTimeInOut = async () => {
     if (isTimedIn) {
@@ -150,16 +193,28 @@ const handleAccomplishmentSubmit = async (accomplishmentData) => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       console.log("Accomplishment form submitted successfully");
+      
+      // ✅ FIX: Set completion flag immediately after successful submission
+      console.log("Setting timeout completed flag immediately after submission");
+      setTimeOutCompleted(true);
     }
 
+    // Update UI state
     setIsTimedIn(false);
     setIsOnBreak(false);
     setIsTimeOutModalOpen(false);
-    setTimeOutCompleted(true); // ✅ Mark timeout as completed (persisted in localStorage)
+    
+    // Refresh data from backend
     await fetchCurrentActivity();
+    
+    // Return success to indicate completion
+    return { success: true };
+    
   } catch (error) {
     console.error("Error submitting accomplishment:", error);
     setError(error.response?.data?.error || "Failed to submit accomplishment");
+    // Rethrow error so modal can handle it
+    throw error;
   } finally {
     setIsLoading(false);
   }
@@ -317,6 +372,7 @@ const handleAccomplishmentSubmit = async (accomplishmentData) => {
             isOpen={isTimeOutModalOpen}
             onClose={() => setIsTimeOutModalOpen(false)}
             onSubmit={handleAccomplishmentSubmit}
+            onEdit={fetchCurrentActivity}
             mode="edit"
           />
         </CardContent>
@@ -337,7 +393,6 @@ const handleAccomplishmentSubmit = async (accomplishmentData) => {
               <div className="space-y-3">
                 {(() => {
                   const logs = generateLogsFromTimeLogs(activityData.timeLogs) || [];
-                  console.log("Generated logs:", logs);
                   return logs.map((log) => (
                     <div
                       key={log.id}
