@@ -11,7 +11,7 @@ import LogTime from "./components/page/AccomplishmentLog/LogTime.jsx";
 import AccomplishmentLogPage from "./components/page/AccomplishmentLog/AccomplishmentLogPage.jsx";
 import AccomplishmentLogPageAdmin from "./components/page/Admin/AccomplishmentLogPageAdmin.jsx";
 
-import { RedirectIfAuthenticated, RequireAuth } from "./util/Auth-Util.jsx";
+import { RedirectIfAuthenticated, RequireAuth, RedirectIfAdmin } from "./util/Auth-Util.jsx";
 
 function App() {
   return (
@@ -19,12 +19,12 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<RedirectIfAuthenticated><Login /></RedirectIfAuthenticated>} />
-          <Route path="/home" element={<RequireAuth><Home /></RequireAuth>} />
+          <Route path="/home" element={<RequireAuth><RedirectIfAdmin><Home /></RedirectIfAdmin></RequireAuth>} />
           <Route path="/RegisterPage" element={<RedirectIfAuthenticated><RegisterPage /></RedirectIfAuthenticated>} />
          
 
           {/* User Routes */}
-          <Route path="/accomplishmentlog" element={<RequireAuth><AccomplishmentLogLayout /></RequireAuth>}>
+          <Route path="/accomplishmentlog" element={<RequireAuth><RedirectIfAdmin><AccomplishmentLogLayout /></RedirectIfAdmin></RequireAuth>}>
             <Route path="" element={<LogTime />} />
             <Route path="log-time" element={<LogTime />} />
             <Route path="accomplishment-logs" element={<AccomplishmentLogPage />} />
