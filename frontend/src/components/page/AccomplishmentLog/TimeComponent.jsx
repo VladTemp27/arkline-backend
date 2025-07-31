@@ -23,11 +23,11 @@ const TimeComponent = () => {
     setIsOnBreak,
     formatTime,
     activityData,
+    setActivityData,
     generateLogsFromTimeLogs,
     calculateHoursWorked,
     fetchCurrentActivity,
     getAuthHeaders,
-    getUserInfo,
     getTimeOutCompleted,
     setTimeOutCompleted,
   } = useTimer();
@@ -43,24 +43,29 @@ const TimeComponent = () => {
         console.log("Timeout already completed today, skipping modal");
         return;
       }
-      
+
       // Wait for initial load to complete before checking
-      console.log("[checkForPendingTimeOut] initialLoadComplete:", initialLoadComplete);
+      console.log(
+        "[checkForPendingTimeOut] initialLoadComplete:",
+        initialLoadComplete
+      );
       if (!initialLoadComplete) {
         console.log("Initial load not complete, skipping timeout check");
         return;
       }
-      
+
       // Don't check if modal is already open
-      console.log("[checkForPendingTimeOut] isTimeOutModalOpen:", isTimeOutModalOpen);
+      console.log(
+        "[checkForPendingTimeOut] isTimeOutModalOpen:",
+        isTimeOutModalOpen
+      );
       if (isTimeOutModalOpen) {
         console.log("Modal already open, skipping");
         return;
       }
-      
+
       // Get username directly from localStorage
       const username = localStorage.getItem("username");
-      console.log("[checkForPendingTimeOut] username from localStorage:", username);
       if (!username) {
         console.log("No username found in localStorage, skipping");
         return;
@@ -68,51 +73,92 @@ const TimeComponent = () => {
 
       // Get user ID for backend verification
       const token = localStorage.getItem("token");
-      console.log("[checkForPendingTimeOut] token from localStorage:", token);
       if (!token) {
         console.log("No token found in localStorage");
         return;
       }
 
-      // ✅ FIX: Use the working activity endpoint instead of timelogs
-      console.log("[checkForPendingTimeOut] Fetching activity data...");
+      // Extract userId from JWT token
+      let userId;
+      try {
+        const decoded = JSON.parse(atob(token.split(".")[1]));
+        userId = decoded.userId;
+      } catch (error) {
+        console.log("Error extracting userId from token");
+        return;
+      }
+
+      // 1. Check for timeout using
+      console.log(
+        "[checkForPendingTimeOut] Fetching activity data for timeout check..."
+      );
       const activityResponse = await axios.get(`${API_BASE}/activity`, {
         headers: getAuthHeaders(),
       });
 
-      console.log("Activity API response:", activityResponse.data);
-
-      // ✅ SIMPLIFIED LOGIC: Check for timeout and accomplishment form
-      // 1. Scan time log for time out
+      console.log("Activity API response received");
       const currentActivityData = activityResponse.data;
       const timeLogData = currentActivityData?.timeLogs;
-      console.log("[checkForPendingTimeOut] timeLogData:", timeLogData);
+      console.log("[checkForPendingTimeOut] timeLogData available:", !!timeLogData);
       const hasTimeOut = !!timeLogData?.timeOut;
       console.log("Backend shows - TimeOut:", hasTimeOut);
 
-      // 2. Check if user has submitted an accomplishment form
-      const hasAccomplishmentForm = !!currentActivityData?.accomplishmentLog;
-      console.log("Has accomplishment form for today:", hasAccomplishmentForm);
+      // 2. Check if user has ANY logs for today
+      console.log("[checkForPendingTimeOut] Fetching all timelogs to check for today's logs...");
+      
+      let hasLogsForToday = false;
+      
+      try {
+        const allTimeLogsResponse = await axios.get(`${API_BASE}/timelogs`, {
+          headers: getAuthHeaders(),
+        });
+
+        console.log("All TimeLogs API response received");
+
+        // Get today's date in YYYY-MM-DD format
+        const today = new Date().toLocaleDateString("en-CA", {
+          timeZone: "Asia/Manila",
+        });
+        console.log("[checkForPendingTimeOut] today's date:", today);
+
+        // Check if current user has any logs for today's date
+        const allTimeLogs = allTimeLogsResponse.data?.allTimeLogs || [];
+        const userLogsForToday = allTimeLogs.filter(
+          (log) => log.userId === userId && log.date === today
+        );
+        
+        console.log("[checkForPendingTimeOut] found", userLogsForToday.length, "logs for today");
+        
+        hasLogsForToday = userLogsForToday.length > 0;
+        console.log("User has logs for today:", hasLogsForToday);
+        
+      } catch (timeLogsError) {
+        console.error("Error fetching all timelogs:", timeLogsError);
+        
+        // If error fetching timelogs, assume no logs for today (safer to show modal)
+        console.log("Error fetching timelogs - treating as no logs for today");
+        hasLogsForToday = false;
+      }
 
       // Show modal if:
-      // - User has timed out today (hasTimeOut)
-      // - No accomplishment form submitted yet (!hasAccomplishmentForm)
+      // - User has timed out today (hasTimeOut from /activity)
+      // - User has NO logs for today's date (!hasLogsForToday from /timelogs)
       // - Modal is not already open (!isTimeOutModalOpen)
-      if (hasTimeOut && !hasAccomplishmentForm && !isTimeOutModalOpen) {
-        console.log("Detected timeout with no accomplishment form - showing modal");
-        
+      if (hasTimeOut && !hasLogsForToday && !isTimeOutModalOpen) {
+        console.log("Detected timeout with no logs for today - showing modal");
+
         // Update local state to match backend reality
         setIsTimedIn(false);
         setIsOnBreak(false);
-        
+
         setIsTimeOutModalOpen(true);
-      } else if (hasTimeOut && hasAccomplishmentForm) {
-        console.log("Found timeout with accomplishment form - marking as completed");
+      } else if (hasTimeOut && hasLogsForToday) {
+        console.log("Found timeout with logs for today - marking as completed");
         setTimeOutCompleted(true);
         setIsTimedIn(false); // Ensure state matches backend
       } else {
         console.log("[checkForPendingTimeOut] No modal condition met.");
-        console.log("Conditions: hasTimeOut:", hasTimeOut, "hasAccomplishmentForm:", hasAccomplishmentForm);
+        console.log("Conditions: hasTimeOut:", hasTimeOut, "hasLogsForToday:", hasLogsForToday);
       }
     } catch (error) {
       console.error("Error checking for pending timeout:", error);
@@ -141,11 +187,15 @@ const TimeComponent = () => {
       setError(null);
       try {
         console.log("Recording timeout in database...");
-        const response = await axios.post(`${API_BASE}/time-out`, {}, {
-          headers: getAuthHeaders(),
-        });
+        const response = await axios.post(
+          `${API_BASE}/time-out`,
+          {},
+          {
+            headers: getAuthHeaders(),
+          }
+        );
         console.log("Timeout recorded successfully:", response.data);
-        
+
         setIsTimeOutModalOpen(true);
       } catch (error) {
         console.error("Error timing out:", error);
@@ -158,17 +208,24 @@ const TimeComponent = () => {
       setIsLoading(true);
       setError(null);
       try {
-        await axios.post(`${API_BASE}/time-in`, {}, {
-          headers: getAuthHeaders(),
-        });
+        await axios.post(
+          `${API_BASE}/time-in`,
+          {},
+          {
+            headers: getAuthHeaders(),
+          }
+        );
 
         setIsTimedIn(true);
         await fetchCurrentActivity();
       } catch (error) {
         console.error("Error timing in:", error);
-        
-        if (error.response?.status === 400 && error.response?.data?.error?.includes('already recorded')) {
-          setError('You have already timed in today');
+
+        if (
+          error.response?.status === 400 &&
+          error.response?.data?.error?.includes("already recorded")
+        ) {
+          setError("You have already timed in today");
           await fetchCurrentActivity();
         } else {
           setError(error.response?.data?.error || "Failed to time in");
@@ -179,46 +236,57 @@ const TimeComponent = () => {
     }
   };
 
-// Update handleAccomplishmentSubmit:
-const handleAccomplishmentSubmit = async (accomplishmentData) => {
-  setIsLoading(true);
-  setError(null);
-  try {
-    if (accomplishmentData) {
-      console.log("Submitting accomplishment form...");
-      const token = localStorage.getItem("token");
-      await axios.post(
-        "/api/accomplishment-tracking/accomplishment-service/submit",
-        accomplishmentData,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      console.log("Accomplishment form submitted successfully");
-      
-      // ✅ FIX: Set completion flag immediately after successful submission
-      console.log("Setting timeout completed flag immediately after submission");
-      setTimeOutCompleted(true);
-    }
+  // Update handleAccomplishmentSubmit:
+  const handleAccomplishmentSubmit = async (accomplishmentData) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      if (accomplishmentData) {
+        console.log("Submitting accomplishment form...");
+        const token = localStorage.getItem("token");
+        await axios.post(
+          "/api/accomplishment-tracking/accomplishment-service/submit",
+          accomplishmentData,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        console.log("Accomplishment form submitted successfully");
 
-    // Update UI state
-    setIsTimedIn(false);
-    setIsOnBreak(false);
-    setIsTimeOutModalOpen(false);
-    
-    // Refresh data from backend
-    await fetchCurrentActivity();
-    
-    // Return success to indicate completion
-    return { success: true };
-    
-  } catch (error) {
-    console.error("Error submitting accomplishment:", error);
-    setError(error.response?.data?.error || "Failed to submit accomplishment");
-    // Rethrow error so modal can handle it
-    throw error;
-  } finally {
-    setIsLoading(false);
-  }
-};
+        // ✅ FIX: Set completion flag immediately after successful submission
+        console.log(
+          "Setting timeout completed flag immediately after submission"
+        );
+        setTimeOutCompleted(true);
+
+        // ✅ FIX: Update activityData to include accomplishment data locally
+        // This ensures hasAccomplishmentForm becomes true immediately
+        console.log("Updating local activity data with accomplishment info");
+        setActivityData((prev) => ({
+          ...prev,
+          accomplishmentLog: accomplishmentData, // Add accomplishment data locally
+        }));
+      }
+
+      // Update UI state
+      setIsTimedIn(false);
+      setIsOnBreak(false);
+      setIsTimeOutModalOpen(false);
+
+      // Refresh data from backend
+      await fetchCurrentActivity();
+
+      // Return success to indicate completion
+      return { success: true };
+    } catch (error) {
+      console.error("Error submitting accomplishment:", error);
+      setError(
+        error.response?.data?.error || "Failed to submit accomplishment"
+      );
+      // Rethrow error so modal can handle it
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleBreak = async () => {
     setIsLoading(true);
@@ -226,16 +294,20 @@ const handleAccomplishmentSubmit = async (accomplishmentData) => {
     try {
       const endpoint = isOnBreak ? "end-lunch-break" : "lunch-break";
 
-      await axios.post(`${API_BASE}/${endpoint}`, {}, {
-        headers: getAuthHeaders(),
-      });
+      await axios.post(
+        `${API_BASE}/${endpoint}`,
+        {},
+        {
+          headers: getAuthHeaders(),
+        }
+      );
 
       if (isOnBreak) {
         setIsOnBreak(false);
       } else {
         setIsOnBreak(true);
       }
-      
+
       await fetchCurrentActivity();
     } catch (error) {
       console.error("Error updating break status:", error);
@@ -294,7 +366,11 @@ const handleAccomplishmentSubmit = async (accomplishmentData) => {
                 Hours Worked Today
               </div>
               <div className="text-4xl font-mono font-bold text-primary">
-                {formatTime(activityData?.timeLogs ? calculateHoursWorked(activityData.timeLogs) : 0)}
+                {formatTime(
+                  activityData?.timeLogs
+                    ? calculateHoursWorked(activityData.timeLogs)
+                    : 0
+                )}
               </div>
               <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                 {isTimedIn && (
@@ -367,7 +443,7 @@ const handleAccomplishmentSubmit = async (accomplishmentData) => {
               })()}
             </Button>
           </div>
-          
+
           <AccomplishmentModal
             isOpen={isTimeOutModalOpen}
             onClose={() => setIsTimeOutModalOpen(false)}
@@ -392,7 +468,8 @@ const handleAccomplishmentSubmit = async (accomplishmentData) => {
             ) : (
               <div className="space-y-3">
                 {(() => {
-                  const logs = generateLogsFromTimeLogs(activityData.timeLogs) || [];
+                  const logs =
+                    generateLogsFromTimeLogs(activityData.timeLogs) || [];
                   return logs.map((log) => (
                     <div
                       key={log.id}
