@@ -11,7 +11,7 @@ import LogTime from "./components/page/AccomplishmentLog/LogTime.jsx";
 import AccomplishmentLogPage from "./components/page/AccomplishmentLog/AccomplishmentLogPage.jsx";
 import AccomplishmentLogPageAdmin from "./components/page/Admin/AccomplishmentLogPageAdmin.jsx";
 
-import { RedirectIfAuthenticated, RequireAuth, RedirectIfAdmin } from "./util/Auth-Util.jsx";
+import { RedirectIfAuthenticated, RequireAuth, RedirectIfAdmin, RedirectIfNotAdmin } from "./util/Auth-Util.jsx";
 
 function App() {
   return (
@@ -31,7 +31,7 @@ function App() {
           </Route>
 
           {/* Admin Routes */}
-          <Route path="/admin" element={<RequireAuth><AccomplishmentLogLayout /></RequireAuth>}>
+          <Route path="/admin" element={<RequireAuth><RedirectIfNotAdmin><AccomplishmentLogLayout /></RedirectIfNotAdmin></RequireAuth>}>
             <Route path="" element={<Navigate to="log-time" replace />} />
             <Route path="log-time" element={<LogTime />} />
             <Route path="tickets" element={<Ticket />} />
