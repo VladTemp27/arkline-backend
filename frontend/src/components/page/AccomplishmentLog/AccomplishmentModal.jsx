@@ -53,8 +53,6 @@ export default function AccomplishmentModal({
         projectHeads: [],
       };
 
-    console.log("Raw data received:", data); // Debug log
-
     const accomplishmentData = data.accomplishment || data.details || data;
 
     // Helper function to safely parse dates with Manila timezone
@@ -95,7 +93,6 @@ export default function AccomplishmentModal({
       projectHeads: accomplishmentData?.projectHeads || [],
     };
 
-    console.log("Transformed data:", transformed); // Debug log
     return transformed;
   };
 
@@ -118,19 +115,13 @@ export default function AccomplishmentModal({
   useEffect(() => {
     if (propAccomplishment && isOpen) {
       const transformedData = getTransformedData(propAccomplishment);
-      console.log("Setting accomplishment state to:", transformedData); // Debug log
       setAccomplishment(transformedData);
       setEditMode(mode); // Reset edit mode when modal opens
-      console.log("Modal opened with mode:", mode); // Debug log
     } else if (isOpen && !propAccomplishment) {
       // When opening for timeout (new accomplishment), should be in edit mode
-      console.log("Modal opened for new accomplishment with mode:", mode); // Debug log
       setEditMode(mode);
     }
   }, [propAccomplishment, isOpen, mode]);
-
-  console.log("Current accomplishment state:", accomplishment); // Debug log
-  console.log("Current editMode:", editMode); // Debug log
 
   // Helper to check if a field is editable
   const isEditable = (field) => {
@@ -206,9 +197,20 @@ export default function AccomplishmentModal({
     };
 
     // Pass the payload to the parent component to handle the API calls
-    // Parent will first call time-out, then submit the form
-    onSubmit && onSubmit(payload);
-    handleClose();
+    // Parent will handle submission, state updates, and refresh
+    try {
+      await onSubmit && onSubmit(payload);
+      
+      // Trigger additional refresh to ensure data is up-to-date
+      if (onEdit) {
+        await onEdit(); // This ensures TimeComponent refreshes
+      }
+      
+      handleClose();
+    } catch (error) {
+      console.error("Error in accomplishment submission:", error);
+      // Don't close modal if there's an error
+    }
   };
 
   const handleClose = () => {
@@ -256,25 +258,19 @@ export default function AccomplishmentModal({
       const date =
         propAccomplishment?.date || new Date().toISOString().split("T")[0];
 
-      console.log("Updating accomplishment for userId:", userId, "date:", date);
-
       await axios.post(
         `/api/accomplishment-tracking/accomplishment-service/form?userId=${userId}&date=${date}`,
         payload,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      console.log("Accomplishment updated successfully");
       setEditMode("view");
 
       // ✅ Call the refresh function to update parent component's data
       if (onEdit) {
-        console.log("Calling onEdit to refresh data...");
         onEdit(); // This will trigger fetchLogs() in the parent component
       }
 
-      // Optional: Show success message
-      console.log("Data refresh triggered");
     } catch (error) {
       console.error("Error updating accomplishment:", error);
       alert(
