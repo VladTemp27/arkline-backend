@@ -41,7 +41,7 @@ const seedData = {
             firstName: 'Mike',
             lastName: 'Wilson',
             password: 'mike123',
-            role: 'employee'
+            role: 'intern'
         },
         {
             username: 'jane.smith',
@@ -55,21 +55,21 @@ const seedData = {
             firstName: 'Bob',
             lastName: 'Anderson',
             password: 'bob123',
-            role: 'employee'
+            role: 'intern'
         },
         {
             username: 'alice.johnson',
             firstName: 'Alice',
             lastName: 'Johnson',
             password: 'alice123',
-            role: 'manager'
+            role: 'intern'
         },
         {
             username: 'john.doe',
             firstName: 'John',
             lastName: 'Doe',
             password: 'john123',
-            role: 'manager'
+            role: 'intern'
         }
     ],
     accomplishmentData: {
