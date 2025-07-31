@@ -50,7 +50,7 @@ export const TimerProvider = ({ children }) => {
   }, []);
 
   // API configuration
-  const API_BASE = "/api/accomplishment-tracking/time-service";
+  const API_BASE = "http://api.arkline.com/api/accomplishment-tracking/time-service";
   
   const getAuthHeaders = useCallback(() => {
     const token = localStorage.getItem("token");
