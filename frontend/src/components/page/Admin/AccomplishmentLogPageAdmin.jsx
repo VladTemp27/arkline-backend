@@ -383,17 +383,7 @@ export default function AccomplishmentDashboard() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Refresh Button */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={fetchTodaysLogs}
-            disabled={isLoading}
-            className="flex items-center gap-2"
-          >
-            <TrendingUp className="h-4 w-4" />
-            Refresh
-          </Button>
+        
 
           {/* Search */}
           <div className="relative">
